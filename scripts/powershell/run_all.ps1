@@ -31,7 +31,7 @@ function Wait-Api {
         }
     }
 
-    throw "API n„o respondeu em atÈ $TimeoutSeconds segundos no endpoint $HealthUrl"
+    throw "API n√£o respondeu em at√© $TimeoutSeconds segundos no endpoint $HealthUrl"
 }
 
 function Run-Step {
@@ -56,23 +56,28 @@ function Run-Step {
 $startApiCmd = Join-Path $PSScriptRoot "start_api.cmd"
 $runPytestPs1 = Join-Path $PSScriptRoot "run_pytest.ps1"
 $runApiPostsPs1 = Join-Path $PSScriptRoot "run_api_posts.ps1"
+$runLinkedinRelatedJobsPromotePendingPs1 = Join-Path $PSScriptRoot "run_linkedin_related_jobs_promote_pending.ps1"
 $showDbTablesPs1 = Join-Path $PSScriptRoot "show_db_tables.ps1"
 
-Run-Step "Validar arquivos necess·rios" {
+Run-Step "Validar arquivos necess√°rios" {
     if (!(Test-Path $startApiCmd)) {
-        throw "Arquivo n„o encontrado: $startApiCmd"
+        throw "Arquivo n√£o encontrado: $startApiCmd"
     }
 
     if (!(Test-Path $runPytestPs1)) {
-        throw "Arquivo n„o encontrado: $runPytestPs1"
+        throw "Arquivo n√£o encontrado: $runPytestPs1"
     }
 
     if (!(Test-Path $runApiPostsPs1)) {
-        throw "Arquivo n„o encontrado: $runApiPostsPs1"
+        throw "Arquivo n√£o encontrado: $runApiPostsPs1"
+    }
+
+    if ($RunLinkedinRelatedJobsPromotePendingInRunAll -and !(Test-Path $runLinkedinRelatedJobsPromotePendingPs1)) {
+        throw "Arquivo n√£o encontrado: $runLinkedinRelatedJobsPromotePendingPs1"
     }
 
     if (!(Test-Path $showDbTablesPs1)) {
-        throw "Arquivo n„o encontrado: $showDbTablesPs1"
+        throw "Arquivo n√£o encontrado: $showDbTablesPs1"
     }
 }
 
@@ -86,12 +91,22 @@ Run-Step "Aguardar API responder" {
     Wait-Api -HealthUrl "$ApiBaseUrl/health" -TimeoutSeconds 90
 }
 
-Run-Step "Executar testes unit·rios pytest -v" {
+Run-Step "Executar testes unit√°rios pytest -v" {
     & $runPytestPs1
 }
 
-Run-Step "Executar POSTs de validaÁ„o" {
+Run-Step "Executar POSTs de valida√ß√£o" {
     & $runApiPostsPs1
+}
+
+if ($RunLinkedinRelatedJobsPromotePendingInRunAll) {
+    Run-Step "Promover related jobs pendentes do LinkedIn" {
+        & $runLinkedinRelatedJobsPromotePendingPs1 -Limit $LinkedinRelatedJobsPromotePendingDefaultLimit
+    }
+}
+else {
+    Write-Step "Promo√ß√£o em lote de related jobs pendentes do LinkedIn desabilitada"
+    Write-Host "Defina `$RunLinkedinRelatedJobsPromotePendingInRunAll = `$true no config.ps1 para habilitar."
 }
 
 Run-Step "Inspecionar tabelas do banco" {

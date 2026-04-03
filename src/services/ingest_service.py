@@ -10,7 +10,7 @@ from src.utils.storage import save_raw_html
 log = structlog.get_logger()
 
 
-async def ingest_url(request: IngestUrlRequest, session: AsyncSession) -> IngestUrlResponse:
+async def ingest_linkedin_request(request: IngestUrlRequest, session: AsyncSession) -> IngestUrlResponse:
     logger = log.bind(url=request.url, source="linkedin")
     logger.info("ingest.started")
 
@@ -70,3 +70,7 @@ async def ingest_url(request: IngestUrlRequest, session: AsyncSession) -> Ingest
             "related_jobs_count": len(record.related_jobs),
         },
     )
+
+
+async def ingest_url(request: IngestUrlRequest, session: AsyncSession) -> IngestUrlResponse:
+    return await ingest_linkedin_request(request=request, session=session)

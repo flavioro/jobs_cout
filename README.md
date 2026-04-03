@@ -1,4 +1,4 @@
-# JobScout v1.1 (LinkedIn + SQLite)
+# JobScout v2.0 (LinkedIn + SQLite)
 
 Pipeline profissional para ingestão de vagas do LinkedIn por URL direta, com:
 - FastAPI
@@ -25,8 +25,51 @@ Esta versão já incorpora os ajustes observados nos HTMLs reais enviados durant
 - separação entre:
   - `status` = resultado técnico da extração;
   - `availability_status` = situação funcional da vaga;
-- captura de cards de **Mais vagas** em `related_jobs`, com `canonical_related_job_url` e deduplicação por vaga relacionada;
-- novos testes de regressão baseados nos HTMLs reais capturados.
+- captura de cards de **Mais vagas** em `related_jobs`, com `canonical_related_job_url` e deduplicação global por vaga relacionada;
+- log explícito quando um card lateral vier sem `related_external_id` e por isso for ignorado na persistência;
+- correção do parser dos cards laterais para reduzir casos de `company = title`, `company` com texto de localização e `company/location_raw` invertidos;
+- novos testes unitários e de regressão baseados nos HTMLs reais capturados.
+
+
+## O que mudou nesta revisão de related jobs
+
+Esta revisão consolida o comportamento dos cards laterais do LinkedIn com foco em produção:
+
+- `related_jobs` agora seguem **unicidade global por vaga do LinkedIn**, usando `canonical_related_job_url` como chave única do banco;
+- quando a mesma vaga relacionada aparecer em diferentes páginas pai, a linha global é atualizada e o `parent_job_id` passa a refletir **o último parent que viu essa vaga**;
+- cards sem `related_external_id` são ignorados na persistência e geram log estruturado `related_job_missing_external_id_skipped`;
+- o parser foi endurecido para tratar layouts onde a localização aparece antes da empresa, ou onde cards verificados repetem o título no lugar da empresa;
+- a bateria de testes cobre contrato de banco, deduplicação global, skip com log e correções de sanidade de `company/location_raw`.
+
+## Estratégia v2.x — promoção em lote de related jobs do LinkedIn
+
+A versão 2.x introduz uma segunda etapa para as vagas descobertas nos cards laterais:
+
+- `related_jobs` continuam sendo a tabela de **descoberta leve**;
+- `jobs` continuam sendo a tabela de **registro completo e validado**;
+- `parent_job_id` em `related_jobs` representa **o último parent que viu essa vaga**;
+- um related job pode ser **promovido** para ingestão completa, reaproveitando o mesmo pipeline de `POST /ingest-url`;
+- a promoção é feita **em lote** por um serviço exclusivo do LinkedIn: `linkedin_related_job_promotion_service.py`;
+- o endpoint existente `GET /related-jobs` também aceita o filtro `promotion_status`, sem criar uma rota separada de consulta.
+
+### Campos novos em `related_jobs`
+
+- `resolved_job_id`: referência para a vaga completa em `jobs`;
+- `is_promoted_to_job`: indica se a vaga lateral já foi enriquecida;
+- `promotion_status`: `pending`, `promoted`, `failed` ou `skipped`;
+- `promotion_attempts`: quantidade de tentativas de promoção;
+- `last_promotion_error`: última falha registrada;
+- `last_promoted_at`: horário da última promoção bem-sucedida;
+- `updated_at`: trilha de atualização do registro global.
+
+### Regras da promoção em lote
+
+1. buscar `related_jobs` com status `pending` ou `failed`;
+2. verificar se já existe um `job` completo correspondente por `canonical_related_job_url`;
+3. se existir, marcar como `promoted` sem reingestão;
+4. se não existir, chamar o pipeline completo do LinkedIn pela URL canônica;
+5. gravar o vínculo em `resolved_job_id`;
+6. registrar falhas em `promotion_status`, `promotion_attempts` e `last_promotion_error`.
 
 ## Estrutura
 
@@ -50,6 +93,7 @@ jobscout/
 │       ├── config.ps1
 │       ├── run_all.ps1
 │       ├── run_api_posts.ps1
+│       ├── run_linkedin_related_jobs_promote_pending.ps1
 │       ├── run_pytest.ps1
 │       ├── show_db_tables.ps1
 │       └── start_api.cmd
@@ -82,6 +126,7 @@ jobscout/
 │   │   └── jobs.py
 │   ├── services/
 │   │   ├── ingest_service.py
+│   │   ├── linkedin_related_job_promotion_service.py
 │   │   └── persistence_service.py
 │   ├── utils/
 │   │   ├── storage.py
@@ -97,6 +142,10 @@ jobscout/
 │   ├── test_linkedin_extractor_real_pages.py
 │   ├── test_linkedin_page_title_fallback.py
 │   ├── test_normalization.py
+│   ├── test_related_jobs.py
+│   ├── test_related_jobs_service.py
+│   ├── test_linkedin_related_job_promotion_service.py
+│   ├── test_routes_jobs.py
 │   └── test_utils.py
 ├── .env.example
 ├── .gitignore
@@ -221,6 +270,51 @@ Resposta típica:
 ## Endpoints adicionais
 
 
+### `POST /linkedin/related-jobs/promote-pending`
+
+Promove em lote vagas descobertas em `related_jobs` para ingestão completa no fluxo exclusivo do LinkedIn.
+
+Payload:
+```json
+{
+  "limit": 10
+}
+```
+
+Resposta típica:
+```json
+{
+  "source": "linkedin",
+  "requested_limit": 10,
+  "processed": 3,
+  "promoted": 2,
+  "already_resolved": 1,
+  "failed": 0,
+  "skipped": 0,
+  "items": [
+    {
+      "related_job_id": "...",
+      "canonical_related_job_url": "https://www.linkedin.com/jobs/view/123/",
+      "promotion_status": "promoted",
+      "action": "promoted",
+      "resolved_job_id": "...",
+      "promotion_attempts": 1,
+      "last_promotion_error": null
+    }
+  ]
+}
+```
+
+Uso:
+```bash
+curl -X POST \
+  'http://127.0.0.1:8000/linkedin/related-jobs/promote-pending' \
+  -H 'accept: application/json' \
+  -H 'content-type: application/json' \
+  -H 'x-api-key: changeme' \
+  -d '{"limit": 10}'
+```
+
 ### `GET /related-jobs`
 
 Lista todas as vagas relacionadas já persistidas, com filtros opcionais via query string.
@@ -228,7 +322,7 @@ Lista todas as vagas relacionadas já persistidas, com filtros opcionais via que
 Exemplo:
 ```bash
 curl -X 'GET' \
-  'http://127.0.0.1:8000/related-jobs?limit=50&offset=0' \
+  'http://127.0.0.1:8000/related-jobs?promotion_status=pending&limit=50&offset=0' \
   -H 'accept: application/json' \
   -H 'x-api-key: changeme'
 ```
@@ -238,6 +332,7 @@ Filtros disponíveis:
 - `company`
 - `workplace_type`
 - `is_easy_apply`
+- `promotion_status`
 - `limit`
 - `offset`
 
@@ -336,8 +431,9 @@ Para facilitar a validação local no Windows com Conda, foi adicionada uma roti
 - `config.ps1`: centraliza caminhos, URL base, porta, API key e URLs de vagas.
 - `run_pytest.ps1`: executa `pytest -v` e grava saída em log.
 - `run_api_posts.ps1`: chama o endpoint `POST /ingest-url` para uma lista de vagas reais e salva as respostas JSON.
+- `run_linkedin_related_jobs_promote_pending.ps1`: chama o endpoint `POST /linkedin/related-jobs/promote-pending` e permite controlar quantos related jobs pendentes serão promovidos com o parâmetro `-Limit`.
 - `show_db_tables.ps1`: inspeciona o SQLite e gera um resumo com as tabelas e quantidades de registros.
-- `run_all.ps1`: orquestra o fluxo completo de validação.
+- `run_all.ps1`: orquestra o fluxo completo de validação, incluindo a promoção em lote quando habilitada no `config.ps1`.
 
 ### Fluxo do `run_all.ps1`
 
@@ -488,3 +584,50 @@ Esta versão adiciona índices para otimizar consultas de vagas relacionadas em:
 - `(parent_job_id, related_url)`
 
 > Se você já tem um `data/jobscout.db` criado antes desta versão e quiser refletir os índices e eventuais ajustes estruturais, o caminho mais simples nesta fase do projeto é recriar o banco local.
+
+
+## Como executar os testes
+
+Todos os testes:
+
+```bash
+pytest
+```
+
+Somente a suíte de related jobs:
+
+```bash
+pytest tests/test_related_jobs.py tests/test_related_jobs_service.py
+```
+
+Observações:
+
+- se houver mudança de schema em SQLite sem Alembic, apague `data/jobscout.db` antes de subir a API novamente;
+- os testes de regressão usam fixtures reais de HTML do LinkedIn já incluídas no projeto.
+
+
+## Testes
+
+Executar a suíte completa:
+
+```bash
+pytest -q
+```
+
+Executar apenas a promoção em lote do LinkedIn:
+
+```bash
+pytest tests/test_linkedin_related_job_promotion_service.py tests/test_routes_jobs.py -q
+```
+
+No Windows, o fluxo oficial do projeto continua sendo:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\powershell\run_pytest.ps1
+```
+
+## Observações de implementação
+
+- o serviço de promoção foi mantido com `linkedin` no nome porque o fluxo, os seletores e a normalização são específicos do LinkedIn;
+- o endpoint em lote reaproveita o mesmo pipeline interno de ingestão da vaga principal, evitando duplicação de regra de negócio;
+- a API segue organizada em múltiplos arquivos FastAPI, e os testes de rota podem sobrescrever dependências via `app.dependency_overrides`. A documentação oficial do FastAPI descreve tanto esse padrão de override quanto o uso de `TestClient` para testar rotas, enquanto a documentação do SQLAlchemy 2.x cobre constraints e relacionamentos ORM. citeturn185635search8turn185635search6turn185635search1turn185635search5

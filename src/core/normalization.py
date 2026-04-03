@@ -4,7 +4,7 @@ from src.core.enums import AvailabilityStatus, ClosedReason, JobSource, JobStatu
 from src.core.fingerprint import build_fingerprint
 from src.schemas.jobs import IngestUrlRequest, JobRecordSchema, RelatedJobSchema
 from src.utils.text import clean_location_raw, map_seniority, map_workplace_type, nullify_placeholder
-from src.utils.url import build_canonical_url
+from src.utils.url import build_canonical_url, extract_linkedin_job_id
 
 
 def normalize_linkedin_payload(payload, request: IngestUrlRequest) -> JobRecordSchema:
@@ -47,6 +47,7 @@ def normalize_linkedin_payload(payload, request: IngestUrlRequest) -> JobRecordS
 
     record = {
         "source": JobSource.LINKEDIN,
+        "external_id": extract_linkedin_job_id(request.url),
         "url": request.url,
         "canonical_url": build_canonical_url(request.url),
         "apply_url": apply_url,

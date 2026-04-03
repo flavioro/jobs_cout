@@ -1,8 +1,13 @@
+from datetime import datetime, timezone
+
 from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
+import structlog
 
 from src.db.models import Job, RelatedJob
-from src.schemas.jobs import JobRecordSchema, RelatedJobListRead, RelatedJobRead
+from src.schemas.jobs import JobRecordSchema, RelatedJobListRead, RelatedJobRead, RelatedJobSchema
+
+logger = structlog.get_logger(__name__)
 
 
 async def upsert_job(session: AsyncSession, record: JobRecordSchema) -> Job:
@@ -11,6 +16,7 @@ async def upsert_job(session: AsyncSession, record: JobRecordSchema) -> Job:
     )
     existing = result.scalar_one_or_none()
     if existing:
+        existing.external_id = record.external_id
         existing.title = record.title
         existing.company = record.company
         existing.location_raw = record.location_raw
@@ -29,12 +35,14 @@ async def upsert_job(session: AsyncSession, record: JobRecordSchema) -> Job:
         existing.raw_html_path = record.raw_html_path
         existing.collected_at = record.collected_at
         await _replace_related_jobs(session, existing.id, record)
+        await _sync_related_rows_for_job(session, existing)
         await session.commit()
         await session.refresh(existing)
         return existing
 
     job = Job(
         source=record.source.value,
+        external_id=record.external_id,
         url=record.url,
         canonical_url=record.canonical_url,
         apply_url=record.apply_url,
@@ -59,6 +67,7 @@ async def upsert_job(session: AsyncSession, record: JobRecordSchema) -> Job:
     session.add(job)
     await session.flush()
     await _replace_related_jobs(session, job.id, record)
+    await _sync_related_rows_for_job(session, job)
     await session.commit()
     await session.refresh(job)
     return job
@@ -66,62 +75,161 @@ async def upsert_job(session: AsyncSession, record: JobRecordSchema) -> Job:
 
 async def _replace_related_jobs(session: AsyncSession, parent_job_id: str, record: JobRecordSchema) -> None:
     await session.execute(delete(RelatedJob).where(RelatedJob.parent_job_id == parent_job_id))
-    seen_canonical_urls: set[str | None] = set()
+    seen_canonical_urls: set[str] = set()
+
     for item in record.related_jobs:
-        canonical_related_job_url = item.canonical_related_job_url
-        if canonical_related_job_url in seen_canonical_urls:
+        if not item.related_external_id:
+            logger.warning(
+                "related_job_missing_external_id_skipped",
+                parent_job_id=parent_job_id,
+                related_url=item.related_url,
+                title=item.title,
+            )
             continue
-        seen_canonical_urls.add(canonical_related_job_url)
-        session.add(
-            RelatedJob(
+
+        canonical_related_job_url = item.canonical_related_job_url
+        if not canonical_related_job_url:
+            logger.warning(
+                "related_job_missing_canonical_url_skipped",
                 parent_job_id=parent_job_id,
                 related_external_id=item.related_external_id,
                 related_url=item.related_url,
-                canonical_related_job_url=item.canonical_related_job_url,
                 title=item.title,
-                company=item.company,
-                location_raw=item.location_raw,
-                workplace_type=item.workplace_type.value if item.workplace_type else None,
-                is_easy_apply=item.is_easy_apply,
-                posted_text_raw=item.posted_text_raw,
-                candidate_signal_raw=item.candidate_signal_raw,
-                is_verified=item.is_verified,
             )
+            continue
+
+        if canonical_related_job_url in seen_canonical_urls:
+            continue
+        seen_canonical_urls.add(canonical_related_job_url)
+
+        matching_job = await _find_existing_job_for_related(session, item)
+        existing_global = await session.scalar(
+            select(RelatedJob).where(RelatedJob.canonical_related_job_url == canonical_related_job_url)
         )
+        if existing_global:
+            _apply_related_job_values(existing_global, parent_job_id, item, matching_job)
+            continue
+
+        related_job = RelatedJob(
+            parent_job_id=parent_job_id,
+            resolved_job_id=matching_job.id if matching_job else None,
+            related_external_id=item.related_external_id,
+            related_url=item.related_url,
+            canonical_related_job_url=canonical_related_job_url,
+            title=item.title,
+            company=item.company,
+            location_raw=item.location_raw,
+            workplace_type=item.workplace_type.value if item.workplace_type else None,
+            is_easy_apply=item.is_easy_apply,
+            posted_text_raw=item.posted_text_raw,
+            candidate_signal_raw=item.candidate_signal_raw,
+            is_verified=item.is_verified,
+            is_promoted_to_job=matching_job is not None,
+            promotion_status="promoted" if matching_job else "pending",
+            last_promoted_at=datetime.now(timezone.utc) if matching_job else None,
+        )
+        session.add(related_job)
+
+
+async def _find_existing_job_for_related(session: AsyncSession, item: RelatedJobSchema) -> Job | None:
+    if item.canonical_related_job_url:
+        existing_by_canonical = await session.scalar(
+            select(Job)
+            .where(Job.source == "linkedin")
+            .where(Job.canonical_url == item.canonical_related_job_url)
+            .order_by(Job.created_at.desc())
+        )
+        if existing_by_canonical:
+            return existing_by_canonical
+
+    if item.related_external_id:
+        return await session.scalar(
+            select(Job)
+            .where(Job.source == "linkedin")
+            .where(Job.external_id == item.related_external_id)
+            .order_by(Job.created_at.desc())
+        )
+    return None
+
+
+def _apply_related_job_values(
+    existing_global: RelatedJob,
+    parent_job_id: str,
+    item: RelatedJobSchema,
+    matching_job: Job | None,
+) -> None:
+    existing_global.parent_job_id = parent_job_id
+    existing_global.related_external_id = item.related_external_id
+    existing_global.related_url = item.related_url
+    existing_global.canonical_related_job_url = item.canonical_related_job_url or existing_global.canonical_related_job_url
+    existing_global.title = item.title
+    existing_global.company = item.company
+    existing_global.location_raw = item.location_raw
+    existing_global.workplace_type = item.workplace_type.value if item.workplace_type else None
+    existing_global.is_easy_apply = item.is_easy_apply
+    existing_global.posted_text_raw = item.posted_text_raw
+    existing_global.candidate_signal_raw = item.candidate_signal_raw
+    existing_global.is_verified = item.is_verified
+    if matching_job:
+        existing_global.resolved_job_id = matching_job.id
+        existing_global.is_promoted_to_job = True
+        existing_global.promotion_status = "promoted"
+        existing_global.last_promotion_error = None
+        existing_global.last_promoted_at = datetime.now(timezone.utc)
+    elif not existing_global.is_promoted_to_job:
+        existing_global.resolved_job_id = None
+        existing_global.promotion_status = "pending"
+
+
+async def _sync_related_rows_for_job(session: AsyncSession, job: Job) -> None:
+    related_row = await session.scalar(
+        select(RelatedJob).where(RelatedJob.canonical_related_job_url == job.canonical_url)
+    )
+    if not related_row:
+        return
+
+    related_row.resolved_job_id = job.id
+    related_row.is_promoted_to_job = True
+    related_row.promotion_status = "promoted"
+    related_row.last_promotion_error = None
+    related_row.last_promoted_at = datetime.now(timezone.utc)
 
 
 async def list_related_jobs(
     session: AsyncSession,
-    *,
     parent_job_id: str | None = None,
     company: str | None = None,
     workplace_type: str | None = None,
     is_easy_apply: bool | None = None,
+    promotion_status: str | None = None,
     limit: int = 50,
     offset: int = 0,
 ) -> RelatedJobListRead:
     filters = []
-
     if parent_job_id:
         filters.append(RelatedJob.parent_job_id == parent_job_id)
     if company:
-        filters.append(RelatedJob.company.ilike(f"%{company}%"))
+        filters.append(RelatedJob.company == company)
     if workplace_type:
         filters.append(RelatedJob.workplace_type == workplace_type)
     if is_easy_apply is not None:
         filters.append(RelatedJob.is_easy_apply == is_easy_apply)
+    if promotion_status:
+        filters.append(RelatedJob.promotion_status == promotion_status)
 
-    base_query = select(RelatedJob)
-    count_query = select(func.count()).select_from(RelatedJob)
-
+    total_stmt = select(func.count()).select_from(RelatedJob)
     if filters:
-        base_query = base_query.where(*filters)
-        count_query = count_query.where(*filters)
+        total_stmt = total_stmt.where(*filters)
+    total = (await session.execute(total_stmt)).scalar_one()
 
-    base_query = base_query.order_by(RelatedJob.created_at.desc()).limit(limit).offset(offset)
+    stmt = select(RelatedJob).order_by(RelatedJob.created_at.desc()).limit(limit).offset(offset)
+    if filters:
+        stmt = stmt.where(*filters)
+    items = (await session.execute(stmt)).scalars().all()
 
-    total = (await session.execute(count_query)).scalar_one()
-    rows = (await session.execute(base_query)).scalars().all()
-
-    items = [RelatedJobRead.model_validate(row) for row in rows]
-    return RelatedJobListRead(items=items, total=total, limit=limit, offset=offset)
+    return RelatedJobListRead(
+        items=[RelatedJobRead.model_validate(item) for item in items],
+        total=total,
+        limit=limit,
+        offset=offset,
+    )

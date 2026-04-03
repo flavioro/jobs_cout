@@ -84,3 +84,57 @@ def test_related_job_candidate_signal_raw_is_preserved(linkedin_case):
     related_jobs = payload.fields["related_jobs"]
 
     assert any(item.get("candidate_signal_raw") == "Avaliando candidaturas" for item in related_jobs)
+
+
+def test_related_job_swaps_company_and_location_when_company_looks_like_location():
+    extractor = LinkedInExtractor()
+    company, location_raw = extractor._sanitize_related_company_and_location(
+        "Engenheiro de Software JR | .NET",
+        ["São Paulo, SP (Híbrido)", "Evertec Brasil"],
+    )
+
+    assert company == "Evertec Brasil"
+    assert location_raw == "São Paulo, SP (Híbrido)"
+
+
+def test_related_job_company_fallback_skips_title_duplicate_for_verified_cards():
+    extractor = LinkedInExtractor()
+    company, location_raw = extractor._sanitize_related_company_and_location(
+        "Desenvolvedor Python (Vaga verificada)",
+        ["Desenvolvedor Python", "Exadel"],
+    )
+
+    assert company == "Exadel"
+    assert location_raw is None
+
+
+def test_related_job_location_can_be_restored_from_swapped_verified_card_layout():
+    extractor = LinkedInExtractor()
+    company, location_raw = extractor._sanitize_related_company_and_location(
+        "Desenvolvedor Fullstack Python - Remoto (Vaga verificada)",
+        ["Getronics", "Brasil (Remoto)"],
+    )
+
+    assert company == "Getronics"
+    assert location_raw == "Brasil (Remoto)"
+
+
+def test_related_job_company_is_not_location_text():
+    extractor = LinkedInExtractor()
+    company, _ = extractor._sanitize_related_company_and_location(
+        "Backend Engineer",
+        ["Brasil (Remoto)", "Crossing Hurdles"],
+    )
+
+    assert company == "Crossing Hurdles"
+
+
+def test_related_job_location_raw_is_cleaned_after_swap():
+    extractor = LinkedInExtractor()
+    company, location_raw = extractor._sanitize_related_company_and_location(
+        "Backend Engineer",
+        ["São Paulo, SP (Híbrido)", "ACME Ltda"],
+    )
+
+    assert company == "ACME Ltda"
+    assert location_raw == "São Paulo, SP (Híbrido)"

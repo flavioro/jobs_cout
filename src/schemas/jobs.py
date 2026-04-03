@@ -55,6 +55,7 @@ class RelatedJobSchema(BaseModel):
 
 class JobRecordSchema(BaseModel):
     source: JobSource = Field(default=JobSource.LINKEDIN)
+    external_id: str | None = None
     url: str
     canonical_url: str
     apply_url: str | None = None
@@ -96,11 +97,27 @@ class IngestUrlResponse(BaseModel):
     job: dict
 
 
+class LinkedinPromotePendingRelatedJobsRequest(BaseModel):
+    limit: int = Field(default=10, ge=1, le=100)
+
+
+class LinkedinPromotePendingRelatedJobsResponse(BaseModel):
+    source: Literal["linkedin"] = "linkedin"
+    requested_limit: int
+    processed: int
+    promoted: int
+    already_resolved: int
+    failed: int
+    skipped: int
+    items: list[dict]
+
+
 class JobRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: str
     source: str
+    external_id: str | None = None
     url: str
     canonical_url: str
     apply_url: str | None = None
@@ -130,6 +147,7 @@ class RelatedJobRead(BaseModel):
 
     id: str
     parent_job_id: str
+    resolved_job_id: str | None = None
     related_external_id: str | None = None
     related_url: str
     canonical_related_job_url: str | None = None
@@ -141,7 +159,13 @@ class RelatedJobRead(BaseModel):
     posted_text_raw: str | None = None
     candidate_signal_raw: str | None = None
     is_verified: bool
+    is_promoted_to_job: bool
+    promotion_status: str
+    promotion_attempts: int
+    last_promotion_error: str | None = None
+    last_promoted_at: datetime | None = None
     created_at: datetime
+    updated_at: datetime
 
 
 class RelatedJobListRead(BaseModel):

@@ -159,35 +159,60 @@ class LinkedInExtractor:
         location_signals = [
             "(remoto)", "(híbrido)", "(hibrido)", "(presencial)",
             " remoto", " híbrido", " hibrido", " presencial",
+            "remote", "hybrid", "onsite",
             "são paulo", "brasil", ", sp", ", rj", ", mg", ", pr", ", sc", ", rs",
         ]
         return any(signal in lowered for signal in location_signals)
 
-    def _sanitize_related_company_and_location(self, title: str | None, candidate_lines: list[str]) -> tuple[str | None, str | None]:
-        company = None
-        location_raw = None
+    def _looks_like_company_name(self, value: str | None) -> bool:
+        if not value:
+            return False
+        lowered = value.lower()
+        company_signals = [
+            "ltda", "s.a", "inc", "llc", "solutions", "technology", "technologies",
+            "digital", "software", "investimentos", "consulting", "corp", "group",
+        ]
+        return any(signal in lowered for signal in company_signals)
 
+    def _sanitize_related_company_and_location(self, title: str | None, candidate_lines: list[str]) -> tuple[str | None, str | None]:
+        normalized_title = clean_text(title)
+        usable_lines: list[str] = []
         for line in candidate_lines:
             cleaned = clean_text(line)
             if not cleaned:
                 continue
-            if company is None and not self._looks_like_location(cleaned):
-                company = cleaned
-                continue
+            usable_lines.append(cleaned)
+
+        company = None
+        location_raw = None
+
+        for cleaned in usable_lines:
             if location_raw is None and self._looks_like_location(cleaned):
                 location_raw = clean_location_raw(cleaned)
                 continue
             if company is None:
                 company = cleaned
-            elif location_raw is None:
+                continue
+            if location_raw is None:
                 location_raw = clean_location_raw(cleaned)
 
-        if company and title and clean_text(company).casefold() == clean_text(title).casefold():
-            for line in candidate_lines:
-                cleaned = clean_text(line)
-                if not cleaned:
+        title_variants: set[str] = set()
+        if normalized_title:
+            title_variants.add(normalized_title.casefold())
+            sanitized_title = sanitize_title(normalized_title)
+            if sanitized_title:
+                title_variants.add(sanitized_title.casefold())
+            verified_stripped_title = clean_text(normalized_title.replace("(Vaga verificada)", "").replace("(vaga verificada)", ""))
+            if verified_stripped_title:
+                title_variants.add(verified_stripped_title.casefold())
+
+        if company and title_variants and company.casefold() in title_variants:
+            company = None
+            for cleaned in usable_lines:
+                candidate_sanitized = sanitize_title(cleaned)
+                if cleaned.casefold() in title_variants:
                     continue
-                if cleaned.casefold() == clean_text(title).casefold():
+                if candidate_sanitized and candidate_sanitized.casefold() in title_variants:
                     continue
                 if self._looks_like_location(cleaned):
                     if location_raw is None:
@@ -196,7 +221,34 @@ class LinkedInExtractor:
                 company = cleaned
                 break
 
-        return company, location_raw
+        if company and location_raw:
+            company_looks_like_location = self._looks_like_location(company)
+            location_looks_like_location = self._looks_like_location(location_raw)
+            location_looks_like_company = self._looks_like_company_name(location_raw)
+            if company_looks_like_location and (not location_looks_like_location or location_looks_like_company):
+                company, location_raw = location_raw, company
+
+        if company and title_variants and company.casefold() in title_variants:
+            company = None
+            for cleaned in usable_lines:
+                candidate_sanitized = sanitize_title(cleaned)
+                if cleaned.casefold() in title_variants:
+                    continue
+                if candidate_sanitized and candidate_sanitized.casefold() in title_variants:
+                    continue
+                if cleaned == location_raw:
+                    continue
+                if self._looks_like_location(cleaned):
+                    if location_raw is None:
+                        location_raw = clean_location_raw(cleaned)
+                    continue
+                company = cleaned
+                break
+
+        if company and location_raw and company.casefold() == location_raw.casefold():
+            location_raw = None
+
+        return company, clean_location_raw(location_raw)
 
     def _parse_related_job_anchor(self, anchor: Tag, href: str) -> dict | None:
         lines = [clean_text(line) for line in anchor.stripped_strings]

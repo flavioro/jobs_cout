@@ -17,9 +17,9 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(
-    title="JobScout v1",
-    version="1.0.0",
-    description="Pipeline de ingestão de vagas do LinkedIn por URL direta.",
+    title="JobScout v2",
+    version="2.0.0",
+    description="Pipeline de ingestão de vagas do LinkedIn por URL direta, com related jobs globais e promoção em lote.",
     lifespan=lifespan,
 )
 

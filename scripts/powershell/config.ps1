@@ -12,7 +12,8 @@ $JobUrls = @(
     "https://www.linkedin.com/jobs/view/4392892148",
     "https://www.linkedin.com/jobs/view/4396673137",
     "https://www.linkedin.com/jobs/view/4396458716",
-    "https://www.linkedin.com/jobs/view/4392808079"
+    "https://www.linkedin.com/jobs/view/4392808079",
+    "https://www.linkedin.com/jobs/view/4392666873"
 )
 
 $LogsDir = Join-Path $ProjectRoot "logs\powershell"
@@ -25,3 +26,6 @@ if (!(Test-Path $LogsDir)) {
 if (!(Test-Path $ResponsesDir)) {
     New-Item -ItemType Directory -Path $ResponsesDir -Force | Out-Null
 }
+
+$LinkedinRelatedJobsPromotePendingDefaultLimit = 1
+$RunLinkedinRelatedJobsPromotePendingInRunAll = $true

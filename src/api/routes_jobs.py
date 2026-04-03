@@ -1,13 +1,22 @@
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
 
 from src.api.dependencies import require_api_key
 from src.db.models import Job, RelatedJob
 from src.db.session import get_db_session
-from src.schemas.jobs import HealthResponse, IngestUrlRequest, IngestUrlResponse, JobRead, RelatedJobListRead, RelatedJobRead
+from src.schemas.jobs import (
+    HealthResponse,
+    IngestUrlRequest,
+    IngestUrlResponse,
+    JobRead,
+    LinkedinPromotePendingRelatedJobsRequest,
+    LinkedinPromotePendingRelatedJobsResponse,
+    RelatedJobListRead,
+    RelatedJobRead,
+)
 from src.services.ingest_service import ingest_url
+from src.services.linkedin_related_job_promotion_service import promote_pending_linkedin_related_jobs
 from src.services.persistence_service import list_related_jobs
 
 router = APIRouter(tags=["jobs"])
@@ -26,6 +35,18 @@ async def ingest_url_endpoint(
     return await ingest_url(request=request, session=session)
 
 
+@router.post(
+    "/linkedin/related-jobs/promote-pending",
+    response_model=LinkedinPromotePendingRelatedJobsResponse,
+    dependencies=[Depends(require_api_key)],
+)
+async def promote_pending_linkedin_related_jobs_endpoint(
+    request: LinkedinPromotePendingRelatedJobsRequest,
+    session: AsyncSession = Depends(get_db_session),
+) -> LinkedinPromotePendingRelatedJobsResponse:
+    return await promote_pending_linkedin_related_jobs(session=session, limit=request.limit)
+
+
 @router.get("/jobs/{job_id}", response_model=JobRead, dependencies=[Depends(require_api_key)])
 async def get_job(
     job_id: str,
@@ -38,14 +59,13 @@ async def get_job(
     return JobRead.model_validate(job)
 
 
-
-
 @router.get("/related-jobs", response_model=RelatedJobListRead, dependencies=[Depends(require_api_key)])
 async def get_all_related_jobs(
     parent_job_id: str | None = Query(default=None),
     company: str | None = Query(default=None),
     workplace_type: str | None = Query(default=None),
     is_easy_apply: bool | None = Query(default=None),
+    promotion_status: str | None = Query(default=None),
     limit: int = Query(default=50, ge=1, le=500),
     offset: int = Query(default=0, ge=0),
     session: AsyncSession = Depends(get_db_session),
@@ -56,6 +76,7 @@ async def get_all_related_jobs(
         company=company,
         workplace_type=workplace_type,
         is_easy_apply=is_easy_apply,
+        promotion_status=promotion_status,
         limit=limit,
         offset=offset,
     )
