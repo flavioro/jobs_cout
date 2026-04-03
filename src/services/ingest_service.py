@@ -1,0 +1,72 @@
+import structlog
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from src.adapters.factory import AdapterFactory
+from src.core.compare import compare_optional_hint
+from src.schemas.jobs import ConfirmationPayload, IngestUrlRequest, IngestUrlResponse
+from src.services.persistence_service import upsert_job
+from src.utils.storage import save_raw_html
+
+log = structlog.get_logger()
+
+
+async def ingest_url(request: IngestUrlRequest, session: AsyncSession) -> IngestUrlResponse:
+    logger = log.bind(url=request.url, source="linkedin")
+    logger.info("ingest.started")
+
+    adapter = AdapterFactory.get_adapter(request.url)
+    raw_page = await adapter.fetch(request.url)
+    payload = adapter.extract(raw_page)
+    record = adapter.normalize(payload, request)
+
+    raw_html_path = save_raw_html(
+        html=raw_page.html,
+        source="linkedin",
+        canonical_url=record.canonical_url,
+    )
+    record = record.model_copy(update={"raw_html_path": raw_html_path})
+
+    job = await upsert_job(session, record)
+
+    confirmation = ConfirmationPayload(
+        title=compare_optional_hint(request.title, record.title),
+        company=compare_optional_hint(request.company, record.company),
+        location_raw=compare_optional_hint(request.location_raw, record.location_raw),
+        is_easy_apply=compare_optional_hint(request.is_easy_apply, record.is_easy_apply),
+        seniority_hint=compare_optional_hint(
+            request.seniority_hint,
+            record.seniority_normalized.value if record.seniority_normalized else None,
+        ),
+        workplace_type=compare_optional_hint(
+            request.workplace_type.value if request.workplace_type else None,
+            record.workplace_type.value if record.workplace_type else None,
+        ),
+    )
+
+    logger.info(
+        "ingest.completed",
+        status=record.status.value,
+        availability_status=record.availability_status.value,
+        related_jobs_count=len(record.related_jobs),
+        job_id=job.id,
+    )
+
+    return IngestUrlResponse(
+        status=record.status.value,
+        source=record.source.value,
+        job_id=job.id,
+        parser_version=record.parser_version,
+        confirmation=confirmation,
+        job={
+            "title": record.title,
+            "company": record.company,
+            "location_raw": record.location_raw,
+            "is_easy_apply": record.is_easy_apply,
+            "seniority_normalized": record.seniority_normalized.value if record.seniority_normalized else None,
+            "workplace_type": record.workplace_type.value if record.workplace_type else None,
+            "availability_status": record.availability_status.value,
+            "closed_reason": record.closed_reason.value if record.closed_reason else None,
+            "apply_url": record.apply_url,
+            "related_jobs_count": len(record.related_jobs),
+        },
+    )
