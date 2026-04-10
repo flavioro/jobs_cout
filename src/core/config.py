@@ -1,4 +1,5 @@
 from functools import lru_cache
+from typing import List
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -29,6 +30,15 @@ class Settings(BaseSettings):
     api_key: str = "changeme"
 
     save_screenshot_on_fetch: bool = False
+
+    # --- Novo: Blocklist ---
+    job_title_blocklist: str = ""
+
+    @property
+    def parsed_title_blocklist(self) -> List[str]:
+        if not self.job_title_blocklist:
+            return []
+        return [word.strip().lower() for word in self.job_title_blocklist.split(",") if word.strip()]
 
 
 @lru_cache(maxsize=1)

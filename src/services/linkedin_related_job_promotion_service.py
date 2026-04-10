@@ -45,33 +45,38 @@ async def promote_pending_linkedin_related_jobs(
             continue
 
         related_job.promotion_attempts += 1
+
         try:
             response = await ingest_linkedin_request(
                 request=IngestUrlRequest(url=related_job.canonical_related_job_url),
                 session=session,
             )
+            
+            # --- NOVO: Lidar com o bloqueio do Porteiro ---
+            if response.status == "blocked":
+                related_job.promotion_status = "blocked"
+                related_job.last_promotion_error = response.block_reason
+                failed += 1
+                summary_items.append(_build_summary_item(related_job, "blocked"))
+                continue
+            # ----------------------------------------------
+
             promoted_job = await _find_existing_linkedin_job(session, related_job)
-            if not promoted_job:
-                raise RuntimeError("job_not_found_after_ingest")
-            _mark_promoted(related_job, promoted_job.id)
-            promoted += 1
-            summary_items.append(
-                {
-                    **_build_summary_item(related_job, "promoted"),
-                    "ingest_job_id": response.job_id,
-                    "ingest_status": response.status,
-                }
-            )
-        except Exception as exc:  # pragma: no cover - covered by service tests through stubs
+            if promoted_job:
+                _mark_promoted(related_job, promoted_job.id)
+                promoted += 1
+                summary_items.append(_build_summary_item(related_job, "promoted"))
+            else:
+                related_job.promotion_status = "failed"
+                related_job.last_promotion_error = "Ingest completed but job not found in DB"
+                failed += 1
+                summary_items.append(_build_summary_item(related_job, "failed"))
+
+        except Exception as e:
+            logger.exception("promotion_failed", related_job_id=related_job.id, error=str(e))
             related_job.promotion_status = "failed"
-            related_job.last_promotion_error = str(exc)
+            related_job.last_promotion_error = str(e)
             failed += 1
-            logger.warning(
-                "linkedin_related_job_promotion_failed",
-                related_job_id=related_job.id,
-                canonical_related_job_url=related_job.canonical_related_job_url,
-                error=str(exc),
-            )
             summary_items.append(_build_summary_item(related_job, "failed"))
 
     await session.commit()
@@ -118,9 +123,7 @@ def _build_summary_item(related_job: RelatedJob, action: str) -> dict:
     return {
         "related_job_id": related_job.id,
         "canonical_related_job_url": related_job.canonical_related_job_url,
-        "promotion_status": related_job.promotion_status,
         "action": action,
-        "resolved_job_id": related_job.resolved_job_id,
-        "promotion_attempts": related_job.promotion_attempts,
-        "last_promotion_error": related_job.last_promotion_error,
+        "attempts": related_job.promotion_attempts,
+        "error": related_job.last_promotion_error,
     }

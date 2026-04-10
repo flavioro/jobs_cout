@@ -1,5 +1,13 @@
 from src.core.enums import AvailabilityStatus, ClosedReason
-from src.utils.text import clean_location_raw, detect_availability, map_seniority, map_workplace_type, nullify_placeholder, sanitize_title
+from src.utils.text import (
+    clean_location_raw,
+    detect_availability,
+    map_seniority,
+    map_workplace_type,
+    nullify_placeholder,
+    sanitize_title,
+    find_blocking_keyword
+)
 from src.utils.url import build_canonical_url
 
 
@@ -49,3 +57,26 @@ def test_map_seniority_does_not_treat_internas_as_intern():
 def test_clean_location_raw_removes_shared_and_click_noise():
     value = "Brasil · Compartilhou há 1 dia · Mais de 100 pessoas clicaram em Candidate-se"
     assert clean_location_raw(value) == "Brasil"
+
+
+# --- NOVOS TESTES: BLOCKLIST (PORTEIRO) ---
+
+def test_find_blocking_keyword_matches_exact_word():
+    blocklist = ["mkt", "marketing", "vendas"]
+    assert find_blocking_keyword("Analista de Vendas", blocklist) == "vendas"
+    assert find_blocking_keyword("Diretor de MKT (Remoto)", blocklist) == "mkt"
+    assert find_blocking_keyword("MARKETING DIGITAL", blocklist) == "marketing"
+
+
+def test_find_blocking_keyword_ignores_partial_matches():
+    blocklist = ["mkt", "vendas"]
+    # "mktsystem" contém "mkt", mas não é a palavra exata, então não deve bloquear
+    assert find_blocking_keyword("Desenvolvedor Mktsystem", blocklist) is None
+    # "vendashub" contém "vendas", mas é uma palavra composta
+    assert find_blocking_keyword("Engenheiro Vendashub", blocklist) is None
+
+
+def test_find_blocking_keyword_returns_none_for_clean_titles():
+    blocklist = ["mkt", "marketing", "vendas"]
+    assert find_blocking_keyword("Backend Python Developer", blocklist) is None
+    assert find_blocking_keyword("Engenheiro de Software", blocklist) is None

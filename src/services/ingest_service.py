@@ -3,9 +3,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.adapters.factory import AdapterFactory
 from src.core.compare import compare_optional_hint
+from src.core.config import get_settings
 from src.schemas.jobs import ConfirmationPayload, IngestUrlRequest, IngestUrlResponse
-from src.services.persistence_service import upsert_job
+from src.services.persistence_service import upsert_job, save_blocked_job
 from src.utils.storage import save_raw_html
+from src.utils.text import find_blocking_keyword
 
 log = structlog.get_logger()
 
@@ -18,6 +20,31 @@ async def ingest_linkedin_request(request: IngestUrlRequest, session: AsyncSessi
     raw_page = await adapter.fetch(request.url)
     payload = adapter.extract(raw_page)
     record = adapter.normalize(payload, request)
+
+    # --- INÍCIO DO BLOQUEIO ---
+    settings = get_settings()
+    blocked_word = find_blocking_keyword(record.title, settings.parsed_title_blocklist)
+    
+    if blocked_word:
+        reason_text = f"Palavra bloqueada: '{blocked_word}'"
+        logger.info("job.blocked", reason=reason_text, title=record.title)
+        
+        await save_blocked_job(
+            session=session,
+            source=record.source.value,
+            url=record.url,
+            title=record.title,
+            company=record.company,
+            block_reason=reason_text
+        )
+        
+        return IngestUrlResponse(
+            status="blocked",
+            source=record.source.value,
+            job_id=None,
+            block_reason=reason_text
+        )
+    # --- FIM DO BLOQUEIO ---
 
     raw_html_path = save_raw_html(
         html=raw_page.html,
@@ -33,10 +60,7 @@ async def ingest_linkedin_request(request: IngestUrlRequest, session: AsyncSessi
         company=compare_optional_hint(request.company, record.company),
         location_raw=compare_optional_hint(request.location_raw, record.location_raw),
         is_easy_apply=compare_optional_hint(request.is_easy_apply, record.is_easy_apply),
-        seniority_hint=compare_optional_hint(
-            request.seniority_hint,
-            record.seniority_normalized.value if record.seniority_normalized else None,
-        ),
+        seniority_hint=compare_optional_hint(request.seniority_hint, record.seniority_raw),
         workplace_type=compare_optional_hint(
             request.workplace_type.value if request.workplace_type else None,
             record.workplace_type.value if record.workplace_type else None,
@@ -73,4 +97,4 @@ async def ingest_linkedin_request(request: IngestUrlRequest, session: AsyncSessi
 
 
 async def ingest_url(request: IngestUrlRequest, session: AsyncSession) -> IngestUrlResponse:
-    return await ingest_linkedin_request(request=request, session=session)
+    return await ingest_linkedin_request(request, session)

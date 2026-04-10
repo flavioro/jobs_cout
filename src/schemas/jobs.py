@@ -54,7 +54,7 @@ class RelatedJobSchema(BaseModel):
 
 
 class JobRecordSchema(BaseModel):
-    source: JobSource = Field(default=JobSource.LINKEDIN)
+    source: JobSource
     external_id: str | None = None
     url: str
     canonical_url: str
@@ -66,17 +66,17 @@ class JobRecordSchema(BaseModel):
     seniority_raw: str | None = None
     seniority_normalized: SeniorityLevel | None = None
     is_easy_apply: bool | None = None
-    availability_status: AvailabilityStatus = AvailabilityStatus.UNKNOWN
+    availability_status: AvailabilityStatus | None = None
     closed_reason: ClosedReason | None = None
     description_text: str | None = None
     template_source: str | None = None
     parser_used: str
     parser_version: str
     status: JobStatus
-    collected_at: datetime
     fingerprint: str
     raw_html_path: str | None = None
-    related_jobs: list[RelatedJobSchema] = []
+    collected_at: datetime
+    related_jobs: list[RelatedJobSchema] = Field(default_factory=list)
 
 
 class ConfirmationPayload(BaseModel):
@@ -91,25 +91,11 @@ class ConfirmationPayload(BaseModel):
 class IngestUrlResponse(BaseModel):
     status: str
     source: str
-    job_id: str
-    parser_version: str
-    confirmation: ConfirmationPayload
-    job: dict
-
-
-class LinkedinPromotePendingRelatedJobsRequest(BaseModel):
-    limit: int = Field(default=10, ge=1, le=100)
-
-
-class LinkedinPromotePendingRelatedJobsResponse(BaseModel):
-    source: Literal["linkedin"] = "linkedin"
-    requested_limit: int
-    processed: int
-    promoted: int
-    already_resolved: int
-    failed: int
-    skipped: int
-    items: list[dict]
+    job_id: str | None = None
+    parser_version: str | None = None
+    confirmation: ConfirmationPayload | None = None
+    job: dict | None = None
+    block_reason: str | None = None
 
 
 class JobRead(BaseModel):
@@ -169,7 +155,19 @@ class RelatedJobRead(BaseModel):
 
 
 class RelatedJobListRead(BaseModel):
-    items: list[RelatedJobRead]
     total: int
-    limit: int
-    offset: int
+    items: list[RelatedJobRead]
+
+
+class LinkedinPromotePendingRelatedJobsRequest(BaseModel):
+    limit: int = Field(10, ge=1, le=100)
+
+
+class LinkedinPromotePendingRelatedJobsResponse(BaseModel):
+    requested_limit: int
+    processed: int
+    promoted: int
+    already_resolved: int
+    failed: int
+    skipped: int
+    items: list[dict]

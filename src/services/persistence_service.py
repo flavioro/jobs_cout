@@ -4,7 +4,7 @@ from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 import structlog
 
-from src.db.models import Job, RelatedJob
+from src.db.models import Job, RelatedJob, BlockedJob
 from src.schemas.jobs import JobRecordSchema, RelatedJobListRead, RelatedJobRead, RelatedJobSchema
 
 logger = structlog.get_logger(__name__)
@@ -233,3 +233,22 @@ async def list_related_jobs(
         limit=limit,
         offset=offset,
     )
+
+async def save_blocked_job(
+    session: AsyncSession,
+    source: str,
+    url: str,
+    title: str | None,
+    company: str | None,
+    block_reason: str,
+) -> BlockedJob:
+    blocked_job = BlockedJob(
+        source=source,
+        url=url,
+        title=title,
+        company=company,
+        block_reason=block_reason,
+    )
+    session.add(blocked_job)
+    await session.commit()
+    return blocked_job

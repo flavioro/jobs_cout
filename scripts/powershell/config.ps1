@@ -8,12 +8,18 @@ $ApiBaseUrl = "http://$ApiHost`:$ApiPort"
 $ApiKey = "changeme"
 
 $JobUrls = @(
-    "https://www.linkedin.com/jobs/view/4383830220",
-    "https://www.linkedin.com/jobs/view/4392892148",
-    "https://www.linkedin.com/jobs/view/4396673137",
-    "https://www.linkedin.com/jobs/view/4396458716",
-    "https://www.linkedin.com/jobs/view/4392808079",
-    "https://www.linkedin.com/jobs/view/4392666873"
+"https://www.linkedin.com/jobs/view/4399017778",
+    "https://www.linkedin.com/jobs/view/4398643663",
+    "https://www.linkedin.com/jobs/view/4398804402",
+    "https://www.linkedin.com/jobs/view/4399462049",
+    "https://www.linkedin.com/jobs/view/4398637755",
+    "https://www.linkedin.com/jobs/view/4394459914",
+    "https://www.linkedin.com/jobs/view/4392998757",
+    "https://www.linkedin.com/jobs/view/4394234722",
+    "https://www.linkedin.com/jobs/view/4392493585",
+    "https://www.linkedin.com/jobs/view/4392018003",
+    "https://www.linkedin.com/jobs/view/4321499321",
+    "https://www.linkedin.com/jobs/view/4343835252"
 )
 
 $LogsDir = Join-Path $ProjectRoot "logs\powershell"
@@ -27,5 +33,5 @@ if (!(Test-Path $ResponsesDir)) {
     New-Item -ItemType Directory -Path $ResponsesDir -Force | Out-Null
 }
 
-$LinkedinRelatedJobsPromotePendingDefaultLimit = 1
+$LinkedinRelatedJobsPromotePendingDefaultLimit = 10
 $RunLinkedinRelatedJobsPromotePendingInRunAll = $true

@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime, timezone
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, Index, Integer, String, Text, UniqueConstraint
+from sqlalchemy import Boolean, DateTime, ForeignKey, Index, Integer, String, Text, UniqueConstraint, JSON
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from src.db.base import Base
@@ -29,6 +29,14 @@ class Job(Base):
     availability_status: Mapped[str | None] = mapped_column(String(50), nullable=True, index=True)
     closed_reason: Mapped[str | None] = mapped_column(String(100), nullable=True)
     description_text: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    # --- Campos IA / CRM ---
+    salary_raw: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    skills: Mapped[list[str] | dict | None] = mapped_column(JSON, nullable=True)
+    fit_score: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    fit_rationale: Mapped[str | None] = mapped_column(Text, nullable=True)
+    applied_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    notes: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     template_source: Mapped[str | None] = mapped_column(String(100), nullable=True)
     parser_used: Mapped[str] = mapped_column(String(100), nullable=False)
@@ -99,3 +107,14 @@ class RelatedJob(Base):
         Index("ix_related_jobs_promotion_status_created_at", "promotion_status", "created_at"),
         UniqueConstraint("canonical_related_job_url", name="uq_related_jobs_canonical_global"),
     )
+
+class BlockedJob(Base):
+    __tablename__ = "blocked_jobs"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    source: Mapped[str] = mapped_column(String(50), nullable=False)
+    url: Mapped[str] = mapped_column(String(2048), nullable=False)
+    title: Mapped[str | None] = mapped_column(String(512), nullable=True)
+    company: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    block_reason: Mapped[str] = mapped_column(Text, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))

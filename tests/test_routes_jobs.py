@@ -56,7 +56,6 @@ def test_promote_pending_linkedin_related_jobs_endpoint_returns_summary(monkeypa
 
     async def fake_promote_pending_linkedin_related_jobs(session, limit):
         return {
-            "source": "linkedin",
             "requested_limit": limit,
             "processed": 1,
             "promoted": 1,
@@ -91,7 +90,6 @@ def test_promote_pending_linkedin_related_jobs_endpoint_returns_summary(monkeypa
         )
         assert response.status_code == 200
         payload = response.json()
-        assert payload["source"] == "linkedin"
         assert payload["requested_limit"] == 5
         assert payload["processed"] == 1
         assert payload["promoted"] == 1

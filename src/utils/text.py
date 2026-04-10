@@ -122,3 +122,15 @@ def sanitize_title(title: str | None, company: str | None = None) -> str | None:
         cleaned = re.sub(rf"\s*-\s*{company_norm}\s*$", "", cleaned, flags=re.IGNORECASE)
 
     return clean_text(cleaned)
+
+def find_blocking_keyword(title: str | None, blocklist: list[str]) -> str | None:
+    """Verifica se o título contém alguma palavra da lista de bloqueio."""
+    if not title or not blocklist:
+        return None
+    
+    title_lower = title.lower()
+    for word in blocklist:
+        pattern = rf"\b{re.escape(word)}\b"
+        if re.search(pattern, title_lower):
+            return word
+    return None

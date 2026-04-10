@@ -28,6 +28,7 @@ class JobStatus(str, Enum):
     LAYOUT_CHANGED = "layout_changed"
     POPUP_FAILED = "popup_failed"
     ERROR = "error"
+    APPLIED = "applied"
 
 
 class AvailabilityStatus(str, Enum):

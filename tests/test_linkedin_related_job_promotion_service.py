@@ -232,3 +232,66 @@ async def test_promote_pending_linkedin_related_jobs_marks_failure(tmp_path, mon
         assert item.last_promotion_error == "playwright timeout"
 
     await engine.dispose()
+
+
+@pytest.mark.asyncio
+async def test_promote_pending_linkedin_related_jobs_handles_blocked_status(monkeypatch, tmp_path):
+    """Teste que garante que o RelatedJob é marcado como 'blocked' quando a ingestão for barrada pelo título."""
+    db_path = tmp_path / "promotion_blocked.db"
+    engine = create_async_engine(f"sqlite+aiosqlite:///{db_path}", future=True)
+    SessionLocal = async_sessionmaker(engine, expire_on_commit=False)
+    await _create_schema(engine)
+
+    async def mock_ingest_request(request, session):
+        return IngestUrlResponse(
+            status="blocked",
+            source="linkedin",
+            job_id=None,
+            block_reason="Palavra bloqueada: 'marketing'"
+        )
+
+    monkeypatch.setattr(
+        "src.services.linkedin_related_job_promotion_service.ingest_linkedin_request",
+        mock_ingest_request,
+    )
+
+    parent_job_id = str(uuid.uuid4())
+
+    async with SessionLocal() as session:
+        session.add_all([
+            Job(
+                id=parent_job_id,
+                source="linkedin",
+                external_id="999",
+                url="https://www.linkedin.com/jobs/view/999/",
+                canonical_url="https://www.linkedin.com/jobs/view/999/",
+                title="Parent",
+                company="Acme",
+                parser_used="linkedin_css_bs4",
+                parser_version="linkedin_v1.2",
+                status="success",
+                fingerprint="fp-parent",
+                collected_at=datetime.now(timezone.utc),
+            ),
+            RelatedJob(
+                parent_job_id=parent_job_id,
+                related_external_id="101",
+                related_url="https://www.linkedin.com/jobs/view/101/",
+                canonical_related_job_url="https://www.linkedin.com/jobs/view/101/",
+                title="Analista de Marketing",
+                company="Company M",
+                promotion_status="pending",
+            ),
+        ])
+        await session.commit()
+
+        response = await promote_pending_linkedin_related_jobs(session, limit=10)
+        item = (await session.execute(select(RelatedJob))).scalar_one()
+
+        assert response.processed == 1
+        assert response.promoted == 0
+        assert response.failed == 1 
+        assert item.promotion_status == "blocked"
+        assert item.is_promoted_to_job is False
+        assert item.promotion_attempts == 1
+        assert item.last_promotion_error == "Palavra bloqueada: 'marketing'"
