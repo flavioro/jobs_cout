@@ -10,16 +10,7 @@ $ApiKey = "changeme"
 $JobUrls = @(
 "https://www.linkedin.com/jobs/view/4399017778",
     "https://www.linkedin.com/jobs/view/4398643663",
-    "https://www.linkedin.com/jobs/view/4398804402",
-    "https://www.linkedin.com/jobs/view/4399462049",
-    "https://www.linkedin.com/jobs/view/4398637755",
-    "https://www.linkedin.com/jobs/view/4394459914",
-    "https://www.linkedin.com/jobs/view/4392998757",
-    "https://www.linkedin.com/jobs/view/4394234722",
-    "https://www.linkedin.com/jobs/view/4392493585",
-    "https://www.linkedin.com/jobs/view/4392018003",
-    "https://www.linkedin.com/jobs/view/4321499321",
-    "https://www.linkedin.com/jobs/view/4343835252"
+    "https://www.linkedin.com/jobs/view/4377426676"
 )
 
 $LogsDir = Join-Path $ProjectRoot "logs\powershell"
