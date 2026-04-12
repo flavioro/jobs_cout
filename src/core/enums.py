@@ -49,3 +49,13 @@ class ConfirmationStatus(str, Enum):
     MISMATCH = "mismatch"
     MISSING = "missing"
     USER_PROVIDED_HINT = "user_provided_hint"
+
+
+class EnglishLevel(str, Enum):
+    NOT_MENTIONED = "not_mentioned"
+    NONE_REQUIRED = "none_required"
+    BASIC = "basic"
+    INTERMEDIATE = "intermediate"
+    ADVANCED = "advanced"
+    FLUENT = "fluent"
+    IMPLICIT = "implicit"

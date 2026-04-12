@@ -35,6 +35,7 @@ class Job(Base):
     skills: Mapped[list[str] | dict | None] = mapped_column(JSON, nullable=True)
     fit_score: Mapped[int | None] = mapped_column(Integer, nullable=True)
     fit_rationale: Mapped[str | None] = mapped_column(Text, nullable=True)
+    english_level: Mapped[str | None] = mapped_column(String(50), nullable=True)
     applied_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
 
@@ -108,6 +109,7 @@ class RelatedJob(Base):
         UniqueConstraint("canonical_related_job_url", name="uq_related_jobs_canonical_global"),
     )
 
+
 class BlockedJob(Base):
     __tablename__ = "blocked_jobs"
 
@@ -118,3 +120,7 @@ class BlockedJob(Base):
     company: Mapped[str | None] = mapped_column(String(255), nullable=True)
     block_reason: Mapped[str] = mapped_column(Text, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+
+    __table_args__ = (
+        UniqueConstraint("url", name="uq_blocked_jobs_url"),
+    )

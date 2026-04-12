@@ -2,7 +2,7 @@ import sqlite3
 from pathlib import Path
 
 def run_migration():
-    # Caminho exato onde seu banco está configurado para ficar
+    # Caminho exato onde seu banco está
     db_path = Path("data/jobscout.db")
     
     if not db_path.exists():
@@ -19,9 +19,9 @@ def run_migration():
         "ALTER TABLE jobs ADD COLUMN skills JSON;",
         "ALTER TABLE jobs ADD COLUMN fit_score INTEGER;",
         "ALTER TABLE jobs ADD COLUMN fit_rationale TEXT;",
+        "ALTER TABLE jobs ADD COLUMN english_level VARCHAR(50);",
         "ALTER TABLE jobs ADD COLUMN applied_at DATETIME;",
-        "ALTER TABLE jobs ADD COLUMN notes TEXT;",
-        "ALTER TABLE jobs ADD COLUMN template_source VARCHAR(100);"
+        "ALTER TABLE jobs ADD COLUMN notes TEXT;"
     ]
 
     for query in novas_colunas:
@@ -36,7 +36,7 @@ def run_migration():
 
     conn.commit()
     conn.close()
-    print("\nMigração das colunas concluída com sucesso! Seus dados estão a salvo.")
+    print("\nMigração das colunas concluída com sucesso! Seus dados antigos estão seguros e a base está pronta para a IA.")
 
 if __name__ == "__main__":
     run_migration()

@@ -19,6 +19,9 @@ from src.services.ingest_service import ingest_url
 from src.services.linkedin_related_job_promotion_service import promote_pending_linkedin_related_jobs
 from src.services.persistence_service import list_related_jobs
 
+# --- Nova importação da IA ---
+from src.services.ai_enrichment_service import enrich_pending_jobs
+
 router = APIRouter(tags=["jobs"])
 
 
@@ -45,18 +48,6 @@ async def promote_pending_linkedin_related_jobs_endpoint(
     session: AsyncSession = Depends(get_db_session),
 ) -> LinkedinPromotePendingRelatedJobsResponse:
     return await promote_pending_linkedin_related_jobs(session=session, limit=request.limit)
-
-
-@router.get("/jobs/{job_id}", response_model=JobRead, dependencies=[Depends(require_api_key)])
-async def get_job(
-    job_id: str,
-    session: AsyncSession = Depends(get_db_session),
-) -> JobRead:
-    result = await session.execute(select(Job).where(Job.id == job_id))
-    job = result.scalar_one_or_none()
-    if not job:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Job not found")
-    return JobRead.model_validate(job)
 
 
 @router.get("/related-jobs", response_model=RelatedJobListRead, dependencies=[Depends(require_api_key)])
@@ -93,7 +84,41 @@ async def get_related_jobs(
 
 
 @router.get("/jobs", response_model=list[JobRead], dependencies=[Depends(require_api_key)])
-async def list_jobs(session: AsyncSession = Depends(get_db_session)) -> list[JobRead]:
-    result = await session.execute(select(Job).order_by(Job.created_at.desc()))
-    jobs = result.scalars().all()
-    return [JobRead.model_validate(job) for job in jobs]
+async def list_jobs(
+    limit: int = Query(default=50, ge=1, le=500),
+    offset: int = Query(default=0, ge=0),
+    session: AsyncSession = Depends(get_db_session),
+) -> list[JobRead]:
+    result = await session.execute(select(Job).order_by(Job.created_at.desc()).limit(limit).offset(offset))
+    items = result.scalars().all()
+    return [JobRead.model_validate(item) for item in items]
+
+
+@router.get("/jobs/{job_id}", response_model=JobRead, dependencies=[Depends(require_api_key)])
+async def get_job(
+    job_id: str,
+    session: AsyncSession = Depends(get_db_session),
+) -> JobRead:
+    job = await session.scalar(select(Job).where(Job.id == job_id))
+    if not job:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Job not found")
+    return JobRead.model_validate(job)
+
+
+# --- Novo Endpoint para Enriquecimento com IA ---
+@router.post(
+    "/linkedin/jobs/enrich",
+    summary="Enriquece vagas pendentes usando Groq LLM",
+    description="Busca vagas extraídas com sucesso que ainda não tenham fit_score e processa através da IA.",
+    dependencies=[Depends(require_api_key)],
+)
+async def enrich_jobs_with_ai(
+    limit: int = Query(10, ge=1, le=50, description="Número máximo de vagas para processar por chamada"),
+    db_session: AsyncSession = Depends(get_db_session)
+):
+    """
+    Este endpoint aciona o modelo Llama-3 pela Groq para calcular o fit_score, 
+    extrair skills e avaliar o idioma inglês.
+    """
+    result = await enrich_pending_jobs(session=db_session, limit=limit)
+    return result

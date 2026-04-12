@@ -11,6 +11,7 @@ from src.core.enums import (
     JobStatus,
     SeniorityLevel,
     WorkplaceType,
+    EnglishLevel,
 )
 from src.utils.url import is_supported_linkedin_url
 
@@ -76,6 +77,16 @@ class JobRecordSchema(BaseModel):
     fingerprint: str
     raw_html_path: str | None = None
     collected_at: datetime
+    
+    # --- Novos Campos Opcionais (IA e CRM) ---
+    salary_raw: str | None = None
+    skills: list[str] | dict | None = None
+    fit_score: int | None = None
+    fit_rationale: str | None = None
+    english_level: EnglishLevel | None = None
+    applied_at: datetime | None = None
+    notes: str | None = None
+    
     related_jobs: list[RelatedJobSchema] = Field(default_factory=list)
 
 
@@ -117,6 +128,16 @@ class JobRead(BaseModel):
     availability_status: str | None = None
     closed_reason: str | None = None
     description_text: str | None = None
+    
+    # --- Novos Campos Opcionais (IA e CRM) ---
+    salary_raw: str | None = None
+    skills: list[str] | dict | None = None
+    fit_score: int | None = None
+    fit_rationale: str | None = None
+    english_level: str | None = None
+    applied_at: datetime | None = None
+    notes: str | None = None
+
     template_source: str | None = None
     parser_used: str
     parser_version: str

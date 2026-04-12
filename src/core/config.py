@@ -31,8 +31,13 @@ class Settings(BaseSettings):
 
     save_screenshot_on_fetch: bool = False
 
-    # --- Novo: Blocklist ---
+    # --- Fase 1: Blocklist ---
     job_title_blocklist: str = ""
+
+    # --- Fase 2: IA & Groq ---
+    groq_api_key: str = ""
+    groq_model: str = "llama3-70b-8192"
+    user_profile_context: str = ""
 
     @property
     def parsed_title_blocklist(self) -> List[str]:

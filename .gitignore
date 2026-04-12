@@ -37,6 +37,10 @@ __pycache__/
 /logs/powershell/responses/*
 !/logs/powershell/responses/.gitkeep
 
+# Ignorar exportações do banco de dados em Excel
+logs/*.xlsx
+logs/~$*.xlsx
+
 # Build / packaging
 build/
 dist/

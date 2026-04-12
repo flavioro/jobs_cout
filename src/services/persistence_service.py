@@ -6,6 +6,8 @@ import structlog
 
 from src.db.models import Job, RelatedJob, BlockedJob
 from src.schemas.jobs import JobRecordSchema, RelatedJobListRead, RelatedJobRead, RelatedJobSchema
+# Adicionei a importação do EnglishLevel
+from src.core.enums import EnglishLevel
 
 logger = structlog.get_logger(__name__)
 
@@ -242,6 +244,15 @@ async def save_blocked_job(
     company: str | None,
     block_reason: str,
 ) -> BlockedJob:
+    # Verifica se já existe
+    stmt = select(BlockedJob).where(BlockedJob.url == url)
+    existing = (await session.execute(stmt)).scalar_one_or_none()
+    
+    if existing:
+        existing.block_reason = block_reason # Atualiza o motivo se necessário
+        await session.commit()
+        return existing
+
     blocked_job = BlockedJob(
         source=source,
         url=url,
@@ -252,3 +263,56 @@ async def save_blocked_job(
     session.add(blocked_job)
     await session.commit()
     return blocked_job
+
+
+# --- NOVOS MÉTODOS PARA A FASE 2 (IA ENRICHMENT) ---
+
+async def get_pending_jobs_for_enrichment(session: AsyncSession, limit: int = 10) -> list[Job]:
+    """Busca vagas que foram processadas com sucesso, mas ainda não passaram pela IA."""
+    stmt = (
+        select(Job)
+        .where(Job.status == "success")
+        .where(Job.fit_score.is_(None))
+        .where(Job.description_text.is_not(None))
+        .order_by(Job.created_at.asc())
+        .limit(limit)
+    )
+    result = await session.execute(stmt)
+    return list(result.scalars().all())
+
+
+async def update_job_ai_enrichment(
+    session: AsyncSession, 
+    job_id: str, 
+    fit_score: int, 
+    fit_rationale: str, 
+    skills: list[str], 
+    salary_raw: str | None,
+    english_level: EnglishLevel
+) -> Job | None:
+    """Atualiza um Job existente com os resultados gerados pela Groq LLM."""
+    job = await session.scalar(select(Job).where(Job.id == job_id))
+    if not job:
+        return None
+        
+    job.fit_score = fit_score
+    job.fit_rationale = fit_rationale
+    job.skills = skills
+    job.salary_raw = salary_raw
+    job.english_level = english_level.value
+    job.updated_at = datetime.now(timezone.utc)
+    
+    await session.commit()
+    await session.refresh(job)
+    return job
+
+async def delete_job(session: AsyncSession, job_id: str) -> bool:
+    """Remove uma vaga da tabela principal (utilizado se for bloqueada tardiamente)."""
+    try:
+        stmt = delete(Job).where(Job.id == job_id)
+        await session.execute(stmt)
+        await session.commit()
+        return True
+    except Exception as e:
+        logger.error("delete_job.error", job_id=job_id, error=str(e))
+        return False
