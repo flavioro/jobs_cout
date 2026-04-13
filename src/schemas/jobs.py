@@ -15,6 +15,21 @@ from src.core.enums import (
 )
 from src.utils.url import is_supported_linkedin_url
 
+class EnrichmentFilters(BaseModel):
+    english_level: EnglishLevel | None = None
+    fit_score_min: int | None = None
+    fit_score_max: int | None = None
+    availability_status: AvailabilityStatus | None = None
+    is_easy_apply: bool | None = None
+    seniority_normalized: SeniorityLevel | None = None
+    workplace_type: WorkplaceType | None = None
+    collected_after: datetime | None = None
+    collected_before: datetime | None = None
+    title_includes: list[str] | None = None
+    seniority_null: bool | None = None
+    workplace_null: bool | None = None
+    english_null: bool | None = None
+    description_null: bool | None = None
 
 class HealthResponse(BaseModel):
     status: Literal["ok"]

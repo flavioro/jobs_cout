@@ -13,6 +13,7 @@ from src.services.persistence_service import (
     delete_job
 )
 from src.utils.text import find_blocking_keyword
+from src.schemas.jobs import EnrichmentFilters
 
 logger = structlog.get_logger(__name__)
 
@@ -25,7 +26,7 @@ class GroqJobAnalysis(BaseModel):
     english_level: str
 
 
-async def enrich_pending_jobs(session: AsyncSession, limit: int = 10) -> dict:
+async def enrich_pending_jobs(session: AsyncSession, limit: int = 10, filters: EnrichmentFilters | None = None) -> dict:
     settings = get_settings()
     
     if not settings.groq_api_key:
@@ -33,7 +34,8 @@ async def enrich_pending_jobs(session: AsyncSession, limit: int = 10) -> dict:
         return {"error": "GROQ_API_KEY não configurada no .env"}
 
     client = AsyncGroq(api_key=settings.groq_api_key)
-    jobs_to_process = await get_pending_jobs_for_enrichment(session, limit=limit)
+
+    jobs_to_process = await get_pending_jobs_for_enrichment(session, limit=limit, filters=filters)
 
     if not jobs_to_process:
         return {"message": "Nenhuma vaga pendente de enriquecimento encontrada.", "processed": 0, "blocked": 0}

@@ -5,6 +5,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.api.dependencies import require_api_key
 from src.db.models import Job, RelatedJob
 from src.db.session import get_db_session
+from datetime import datetime
+from src.schemas.jobs import EnrichmentFilters
+from src.core.enums import EnglishLevel, AvailabilityStatus, SeniorityLevel, WorkplaceType
 from src.schemas.jobs import (
     HealthResponse,
     IngestUrlRequest,
@@ -108,17 +111,47 @@ async def get_job(
 # --- Novo Endpoint para Enriquecimento com IA ---
 @router.post(
     "/linkedin/jobs/enrich",
-    summary="Enriquece vagas pendentes usando Groq LLM",
-    description="Busca vagas extraídas com sucesso que ainda não tenham fit_score e processa através da IA.",
+    summary="Enriquece vagas usando filtros e Groq LLM",
+    description="Filtre vagas específicas antes de enviar para a IA.",
     dependencies=[Depends(require_api_key)],
 )
 async def enrich_jobs_with_ai(
-    limit: int = Query(10, ge=1, le=50, description="Número máximo de vagas para processar por chamada"),
+    limit: int = Query(10, ge=1, le=50, description="Máximo de vagas"),
+    english_level: EnglishLevel | None = Query(None, description="Filtrar por nível de inglês"),
+    fit_score_min: int | None = Query(None, ge=0, le=100, description="Score mínimo (para reprocessamento)"),
+    fit_score_max: int | None = Query(None, ge=0, le=100, description="Score máximo"),
+    availability_status: AvailabilityStatus | None = Query(None, description="Status da vaga (ex: open)"),
+    is_easy_apply: bool | None = Query(None, description="Apenas vagas de candidatura simplificada?"),
+    seniority_normalized: SeniorityLevel | None = Query(None, description="Nível de senioridade"),
+    workplace_type: WorkplaceType | None = Query(None, description="Ex: remote, hybrid"),
+    collected_after: datetime | None = Query(None, description="Coletadas após (ISO 8601)"),
+    collected_before: datetime | None = Query(None, description="Coletadas antes (ISO 8601)"),
+    title_includes: str | None = Query(None, description="Palavras obrigatórias no título (ex: jr, backend)"),
+    seniority_null: bool | None = Query(None, description="Buscar apenas onde senioridade está vazia?"),
+    workplace_null: bool | None = Query(None, description="Buscar apenas onde workplace_type está vazio?"),
+    english_null: bool | None = Query(None, description="Buscar apenas onde o ingles está vazio?"),
+    description_null: bool | None = Query(None, description="Buscar apenas onde a descrição está vazia?"),
     db_session: AsyncSession = Depends(get_db_session)
 ):
-    """
-    Este endpoint aciona o modelo Llama-3 pela Groq para calcular o fit_score, 
-    extrair skills e avaliar o idioma inglês.
-    """
-    result = await enrich_pending_jobs(session=db_session, limit=limit)
+    # Transforma "jr, backend" em ["jr", "backend"] limpando os espaços
+    parsed_title_includes = [word.strip() for word in title_includes.split(",")] if title_includes else None
+
+    filters = EnrichmentFilters(
+        english_level=english_level,
+        fit_score_min=fit_score_min,
+        fit_score_max=fit_score_max,
+        availability_status=availability_status,
+        is_easy_apply=is_easy_apply,
+        seniority_normalized=seniority_normalized,
+        workplace_type=workplace_type,
+        collected_after=collected_after,
+        collected_before=collected_before,
+        title_includes=parsed_title_includes,
+        seniority_null=seniority_null,
+        workplace_null=workplace_null,
+        english_null=english_null,
+        description_null=description_null
+    )
+    
+    result = await enrich_pending_jobs(session=db_session, limit=limit, filters=filters)
     return result

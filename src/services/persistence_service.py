@@ -1,16 +1,78 @@
 from datetime import datetime, timezone
 
-from sqlalchemy import delete, func, select
+from sqlalchemy import delete, func, select, and_
 from sqlalchemy.ext.asyncio import AsyncSession
 import structlog
 
 from src.db.models import Job, RelatedJob, BlockedJob
-from src.schemas.jobs import JobRecordSchema, RelatedJobListRead, RelatedJobRead, RelatedJobSchema
-# Adicionei a importação do EnglishLevel
+from src.schemas.jobs import JobRecordSchema, RelatedJobListRead, RelatedJobRead, RelatedJobSchema, EnrichmentFilters
 from src.core.enums import EnglishLevel
 
 logger = structlog.get_logger(__name__)
 
+
+
+async def get_pending_jobs_for_enrichment(
+    session: AsyncSession, 
+    limit: int = 10,
+    filters: "EnrichmentFilters | None" = None
+) -> list[Job]:
+    """Busca vagas para enriquecimento aplicando filtros dinâmicos."""
+    
+    stmt = select(Job).where(Job.status == "success")
+    
+    # Se fit_score_min ou max forem passados, removemos a trava de fit_score is None 
+    # para permitir re-processamento. Caso contrário, mantemos apenas as novas.
+    if filters and (filters.fit_score_min is not None or filters.fit_score_max is not None):
+        pass # Filtro de score será aplicado abaixo
+    else:
+        stmt = stmt.where(Job.fit_score.is_(None))
+
+    stmt = stmt.where(Job.description_text.is_not(None))
+
+    # Aplicação Dinâmica de Filtros
+    if filters:
+
+	# --- LÓGICA DE PALAVRAS-CHAVE NO TÍTULO (AND) ---
+        if filters.title_includes:
+            # Para cada palavra na lista, adicionamos um filtro 'contains'
+            # Isso garante que a ordem não importa (ex: 'Python Pleno' ou 'Pleno Python')
+            conditions = []
+            for word in filters.title_includes:
+                # O ilike adiciona o "%" de cada lado, buscando a palavra em qualquer parte do título
+                conditions.append(Job.title.ilike(f"%{word}%"))
+            stmt = stmt.where(and_(*conditions))
+
+	# --- LÓGICA DE FILTRAR VAZIOS (NULL) ---
+        if filters.seniority_null is True:
+            stmt = stmt.where(Job.seniority_normalized.is_(None))
+        if filters.workplace_null is True:
+            stmt = stmt.where(Job.workplace_type.is_(None))
+        if filters.english_null is True:
+            stmt = stmt.where(Job.english_level.is_(None))
+
+        if filters.english_level:
+            stmt = stmt.where(Job.english_level == filters.english_level.value)
+        if filters.fit_score_min is not None:
+            stmt = stmt.where(Job.fit_score >= filters.fit_score_min)
+        if filters.fit_score_max is not None:
+            stmt = stmt.where(Job.fit_score <= filters.fit_score_max)
+        if filters.availability_status:
+            stmt = stmt.where(Job.availability_status == filters.availability_status.value)
+        if filters.is_easy_apply is not None:
+            stmt = stmt.where(Job.is_easy_apply == filters.is_easy_apply)
+        if filters.seniority_normalized:
+            stmt = stmt.where(Job.seniority_normalized == filters.seniority_normalized.value)
+        if filters.workplace_type:
+            stmt = stmt.where(Job.workplace_type == filters.workplace_type.value)
+        if filters.collected_after:
+            stmt = stmt.where(Job.collected_at >= filters.collected_after)
+        if filters.collected_before:
+            stmt = stmt.where(Job.collected_at <= filters.collected_before)
+
+    stmt = stmt.order_by(Job.created_at.asc()).limit(limit)
+    result = await session.execute(stmt)
+    return list(result.scalars().all())
 
 async def upsert_job(session: AsyncSession, record: JobRecordSchema) -> Job:
     result = await session.execute(
@@ -267,16 +329,62 @@ async def save_blocked_job(
 
 # --- NOVOS MÉTODOS PARA A FASE 2 (IA ENRICHMENT) ---
 
-async def get_pending_jobs_for_enrichment(session: AsyncSession, limit: int = 10) -> list[Job]:
-    """Busca vagas que foram processadas com sucesso, mas ainda não passaram pela IA."""
-    stmt = (
-        select(Job)
-        .where(Job.status == "success")
-        .where(Job.fit_score.is_(None))
-        .where(Job.description_text.is_not(None))
-        .order_by(Job.created_at.asc())
-        .limit(limit)
-    )
+async def get_pending_jobs_for_enrichment(
+    session: AsyncSession, 
+    limit: int = 10,
+    filters: EnrichmentFilters | None = None
+) -> list[Job]:
+    """Busca vagas que foram processadas com sucesso, aplicando filtros dinâmicos."""
+    
+    stmt = select(Job).where(Job.status == "success")
+    stmt = stmt.where(Job.description_text.is_not(None))
+    
+    # Se fit_score_min ou max forem passados, permitimos re-processar vagas já avaliadas.
+    if filters and (filters.fit_score_min is not None or filters.fit_score_max is not None):
+        pass 
+    else:
+        stmt = stmt.where(Job.fit_score.is_(None))
+
+    # Aplicação Dinâmica dos Filtros
+    if filters:
+        # --- LÓGICA DE PALAVRAS-CHAVE NO TÍTULO (AND) ---
+        if filters.title_includes:
+            conditions = []
+            for word in filters.title_includes:
+                conditions.append(Job.title.ilike(f"%{word}%"))
+            stmt = stmt.where(and_(*conditions))
+            
+        # --- LÓGICA DE FILTRAR VAZIOS (NULL) ---
+        if filters.seniority_null is True:
+            stmt = stmt.where(Job.seniority_normalized.is_(None))
+        if filters.workplace_null is True:
+            stmt = stmt.where(Job.workplace_type.is_(None))
+        if filters.english_null is True:
+            stmt = stmt.where(Job.english_level.is_(None))
+        if filters.description_null is True:
+            stmt = stmt.where(Job.description_text.is_(None))
+
+        # --- FILTROS NORMAIS ---
+        if filters.english_level:
+            stmt = stmt.where(Job.english_level == filters.english_level.value)
+        if filters.fit_score_min is not None:
+            stmt = stmt.where(Job.fit_score >= filters.fit_score_min)
+        if filters.fit_score_max is not None:
+            stmt = stmt.where(Job.fit_score <= filters.fit_score_max)
+        if filters.availability_status:
+            stmt = stmt.where(Job.availability_status == filters.availability_status.value)
+        if filters.is_easy_apply is not None:
+            stmt = stmt.where(Job.is_easy_apply == filters.is_easy_apply)
+        if filters.seniority_normalized:
+            stmt = stmt.where(Job.seniority_normalized == filters.seniority_normalized.value)
+        if filters.workplace_type:
+            stmt = stmt.where(Job.workplace_type == filters.workplace_type.value)
+        if filters.collected_after:
+            stmt = stmt.where(Job.collected_at >= filters.collected_after)
+        if filters.collected_before:
+            stmt = stmt.where(Job.collected_at <= filters.collected_before)
+
+    stmt = stmt.order_by(Job.created_at.asc()).limit(limit)
     result = await session.execute(stmt)
     return list(result.scalars().all())
 
