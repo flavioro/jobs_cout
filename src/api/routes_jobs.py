@@ -1,13 +1,13 @@
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from datetime import datetime
 
 from src.api.dependencies import require_api_key
 from src.db.models import Job, RelatedJob
 from src.db.session import get_db_session
-from datetime import datetime
-from src.schemas.jobs import EnrichmentFilters
 from src.core.enums import EnglishLevel, AvailabilityStatus, SeniorityLevel, WorkplaceType
+
 from src.schemas.jobs import (
     HealthResponse,
     IngestUrlRequest,
@@ -17,16 +17,39 @@ from src.schemas.jobs import (
     LinkedinPromotePendingRelatedJobsResponse,
     RelatedJobListRead,
     RelatedJobRead,
+    JobCRMUpdate, 
+    EnrichmentFilters
 )
+
+from src.services.persistence_service import update_job_crm, get_pending_jobs_for_enrichment, list_related_jobs
 from src.services.ingest_service import ingest_url
 from src.services.linkedin_related_job_promotion_service import promote_pending_linkedin_related_jobs
-from src.services.persistence_service import list_related_jobs
-
-# --- Nova importação da IA ---
 from src.services.ai_enrichment_service import enrich_pending_jobs
 
 router = APIRouter(tags=["jobs"])
 
+@router.patch(
+    "/jobs/{job_id}/crm",
+    response_model=JobRead,
+    summary="Atualiza dados de candidatura e CRM",
+    description="Permite marcar a vaga como aplicada, adicionar notas de entrevistas e registrar a expectativa salarial informada.",
+    dependencies=[Depends(require_api_key)],
+)
+async def update_job_crm_endpoint(
+    job_id: str,
+    update_data: JobCRMUpdate,
+    session: AsyncSession = Depends(get_db_session),
+) -> JobRead:
+    job = await update_job_crm(
+        session=session,
+        job_id=job_id,
+        applied=update_data.applied,
+        notes=update_data.notes,
+        salary_expectation=update_data.salary_expectation
+    )
+    if not job:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Vaga não encontrada.")
+    return JobRead.model_validate(job)
 
 @router.get("/health", response_model=HealthResponse)
 async def health() -> HealthResponse:

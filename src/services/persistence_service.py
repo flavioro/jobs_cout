@@ -1,5 +1,4 @@
 from datetime import datetime, timezone
-
 from sqlalchemy import delete, func, select, and_
 from sqlalchemy.ext.asyncio import AsyncSession
 import structlog
@@ -11,6 +10,34 @@ from src.core.enums import EnglishLevel
 logger = structlog.get_logger(__name__)
 
 
+async def update_job_crm(
+    session: AsyncSession,
+    job_id: str,
+    applied: bool | None = None,
+    notes: str | None = None,
+    salary_expectation: str | None = None
+) -> Job | None:
+    """Atualiza o status de candidatura, notas e expectativa salarial de uma vaga."""
+    stmt = select(Job).where(Job.id == job_id)
+    job = (await session.execute(stmt)).scalar_one_or_none()
+    
+    if not job:
+        return None
+        
+    if applied is True:
+        job.applied_at = datetime.now(timezone.utc)
+    elif applied is False:
+        job.applied_at = None
+        
+    if notes is not None:
+        job.notes = notes
+
+    if salary_expectation is not None:
+        job.salary_expectation = salary_expectation
+        
+    await session.commit()
+    await session.refresh(job)
+    return job
 
 async def get_pending_jobs_for_enrichment(
     session: AsyncSession, 

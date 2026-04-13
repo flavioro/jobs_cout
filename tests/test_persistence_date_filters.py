@@ -58,7 +58,7 @@ async def test_date_filters_logic_with_real_data(tmp_path):
     async with SessionLocal() as session:
         filters_before = EnrichmentFilters(
             collected_before=datetime.strptime("2026-04-11", "%Y-%m-%d").replace(tzinfo=timezone.utc),
-            title_includes=["jr"],
+            title_includes=["junior"],
             availability_status=AvailabilityStatus.OPEN
         )
         results_before = await get_pending_jobs_for_enrichment(session, limit=10, filters=filters_before)

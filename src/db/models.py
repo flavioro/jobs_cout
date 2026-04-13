@@ -38,6 +38,7 @@ class Job(Base):
     english_level: Mapped[str | None] = mapped_column(String(50), nullable=True)
     applied_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    salary_expectation: Mapped[str | None] = mapped_column(String, nullable=True)
 
     template_source: Mapped[str | None] = mapped_column(String(100), nullable=True)
     parser_used: Mapped[str] = mapped_column(String(100), nullable=False)

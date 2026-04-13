@@ -15,13 +15,7 @@ def run_migration():
 
     # Comandos SQL para adicionar apenas as novas colunas
     novas_colunas = [
-        "ALTER TABLE jobs ADD COLUMN salary_raw VARCHAR(255);",
-        "ALTER TABLE jobs ADD COLUMN skills JSON;",
-        "ALTER TABLE jobs ADD COLUMN fit_score INTEGER;",
-        "ALTER TABLE jobs ADD COLUMN fit_rationale TEXT;",
-        "ALTER TABLE jobs ADD COLUMN english_level VARCHAR(50);",
-        "ALTER TABLE jobs ADD COLUMN applied_at DATETIME;",
-        "ALTER TABLE jobs ADD COLUMN notes TEXT;"
+        "ALTER TABLE jobs ADD COLUMN salary_expectation VARCHAR(255);"
     ]
 
     for query in novas_colunas:

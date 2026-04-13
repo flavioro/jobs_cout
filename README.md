@@ -3,23 +3,29 @@
 Pipeline profissional para ingestão de vagas do LinkedIn e enriquecimento inteligente de dados via Groq (Llama 3.3), focado em engenharia de software pragmática e transição de carreira para Applied AI.
 
 ## 🚀 Status do Projeto: Funcional & Inteligente
-- **Ingestão:** Extração bruta de HTML e metadados via Playwright.
-- **Filtro "Porteiro":** Bloqueio automático por título indesejado (Blocklist).
+- **Ingestão & Blocklist:** Extração bruta via Playwright com bloqueio automático e deduplicado por título indesejado.
+- **Filtros Avançados:** Busca otimizada via SQLAlchemy (`EnrichmentFilters`) por palavras-chave, datas e campos nulos antes de acionar a IA.
 - **Enriquecimento IA:** Integração com Groq LLM para cálculo de `fit_score`, extração de `skills` e análise de `english_level`.
-- **Observabilidade:** Registros detalhados em `jobs`, `related_jobs` e `blocked_jobs`.
-- **Qualidade:** 123 testes unitários e de integração aprovados.
+- **Módulo de CRM:** Endpoint dedicado para gerenciar candidaturas, isolando o registro de `applied_at`, notas de entrevistas (`notes`) e pretensão salarial (`salary_expectation`).
+- **Qualidade:** 128 testes unitários e de integração aprovados.
 
 ---
 
-## 📋 Checklist / Próximos Passos
-*(Estes itens serão removidos do README conforme forem implementados)*
+## 📋 Checklist / Roadmap
 
-- [ ] **Refinamento de Pesos:** Ajustar o prompt da Groq para aplicar pesos específicos no `fit_score` (ex: mais peso para FastAPI e Engenharia de Produção).
-- [ ] **Deduplicação e Testes de Bloqueio:** Validar a restrição de unicidade na tabela `blocked_jobs` e criar testes específicos para tentativas de duplicados.
-- [ ] **Fluxo de Candidatura:** Implementar endpoint para marcar vaga como aplicada (`applied_at`) e gerir o status de CRM.
-- [ ] **Gestão de Notas:** Criar funcionalidade para edição do campo `notes` para acompanhamento de entrevistas.
-- [ ] **Automação (Background Tasks):** Criar um worker para processar o enriquecimento de IA automaticamente após a ingestão.
-- [ ] **Configuração Alembic:** Substituir o script manual `migrate_db.py` por migrações formais do Alembic.
+### ✅ Concluído (Fases 1 e 2)
+- [x] Ingestão de vagas via URL e extração de DOM.
+- [x] Implementação da Blocklist (Porteiro) na ingestão e no enriquecimento.
+- [x] Correção de duplicação na tabela `blocked_jobs`.
+- [x] Integração base com Groq LLM para calcular `fit_score` e preencher `english_level`.
+- [x] Implementação de Filtros Avançados (datas, keywords no título, flags de nulos).
+- [x] **Fluxo de Candidatura (CRM):** Endpoint implementado para marcar vaga como aplicada (`applied_at`).
+- [x] **Gestão de Notas (CRM):** Funcionalidade para edição dos campos `notes` e `salary_expectation`.
+
+### ⏳ Pendente (Fase 3 - Atual)
+- [ ] **Refinamento de Pesos (Prompt):** Ajustar o prompt da Groq para aplicar pesos numéricos específicos no `fit_score` (ex: +pontos para FastAPI, -pontos para tecnologias indesejadas).
+- [ ] **Automação (Background Tasks):** Criar um worker para processar o enriquecimento de IA automaticamente logo após a ingestão.
+- [ ] **Migrações de Banco (Alembic):** Substituir o script manual `migrate_db.py` por migrações formais para facilitar a evolução do esquema.
 
 ---
 

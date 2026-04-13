@@ -1,6 +1,5 @@
 from datetime import datetime
 from typing import Literal
-
 from pydantic import AliasChoices, BaseModel, ConfigDict, Field, field_validator
 
 from src.core.enums import (
@@ -14,6 +13,14 @@ from src.core.enums import (
     EnglishLevel,
 )
 from src.utils.url import is_supported_linkedin_url
+
+
+from src.core.enums import EnglishLevel, AvailabilityStatus, SeniorityLevel, WorkplaceType
+
+class JobCRMUpdate(BaseModel):
+    applied: bool | None = Field(None, description="Se True, marca a data de hoje em applied_at. Se False, limpa o campo.")
+    notes: str | None = Field(None, description="Suas notas pessoais sobre a vaga (entrevistas, feedback, etc.)")
+    salary_expectation: str | None = Field(None, description="O valor da pretensão salarial informada na candidatura.")
 
 class EnrichmentFilters(BaseModel):
     english_level: EnglishLevel | None = None
@@ -151,6 +158,7 @@ class JobRead(BaseModel):
     fit_rationale: str | None = None
     english_level: str | None = None
     applied_at: datetime | None = None
+    salary_expectation: str | None
     notes: str | None = None
 
     template_source: str | None = None
