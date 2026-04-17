@@ -18,6 +18,9 @@ class Settings(BaseSettings):
 
     parser_version: str = "linkedin_v1.0"
 
+    # Adicione junto das outras variáveis do Playwright
+    interactive_login: bool = False
+
     log_level: str = "INFO"
 
     playwright_headless: bool = True

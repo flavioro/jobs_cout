@@ -29,6 +29,29 @@ Pipeline profissional para ingestão de vagas do LinkedIn e enriquecimento intel
 
 ---
 
+### 📅 Backlog Priorizado (Fase 3 - Inteligência e Temporalidade)
+
+Com foco em recolocação imediata e transição gradual para IA, priorizaremos:
+
+1. **Refinamento de Pesos (Gradual AI Transition):**
+   - *Lógica:* Garantir pontuação alta para o "ganha-pão" atual (Python/FastAPI) e bônus para o futuro (AI/Agents).
+   - *Score:* Base Python/FastAPI (+60 pts) + Diferencial IA/LLMs (+30 pts). Tecnologias fora do stack (ex: .NET, Java) recebem penalidade pesada.
+
+2. **Ajuste de Temporalidade em `collected_at`:**
+   - *Decisão:* Não criaremos novos campos. O campo `collected_at` passará a refletir a **Data de Publicação**.
+   - *Tarefa:* O extrator calculará `data_atual - tempo_relativo_linkedin` e salvará o resultado no campo existente.
+
+3. **Inteligência de Senioridade via LLM:**
+   - *Objetivo:* Resolver o problema de 43% das vagas com senioridade nula.
+   - *Tarefa:* O Prompt da IA deve inferir se a vaga é Junior, Pleno, Senior ou Lead através da análise do texto da descrição.
+
+2. Checklist Técnico de Implementação (Itens 2, 3 e 4)
+[ ] [Prompt - Itens 2 e 4] Atualizar a SYSTEM_PROMPT para incluir a nova matriz de pesos e a obrigatoriedade de inferir a senioridade caso ela não tenha sido capturada pelo crawler.
+
+[ ] [Ingestão - Item 3] Modificar o ingest_service.py (ou o extrator Playwright) para converter strings como "há 1 semana" ou "há 2 dias" em objetos datetime reais antes de enviar para o upsert_job.
+
+[ ] [Persistence] Garantir que o get_pending_jobs_for_enrichment utilize o collected_at (agora como data de postagem) para priorizar as vagas mais recentes no envio para a Groq.
+
 ## 🛠️ Stack Tecnológica
 - **Backend:** FastAPI & Pydantic v2.
 - **IA:** Groq Cloud (Llama-3.3-70b-versatile).

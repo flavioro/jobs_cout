@@ -46,31 +46,54 @@ async def fetch_linkedin_page(url: str) -> RawPage:
         await page.goto(url, wait_until="domcontentloaded", timeout=settings.playwright_timeout_ms)
         await page.wait_for_timeout(3000)
 
+        # =====================================================================
+        # DETECÇÃO DE BLOQUEIO E INTERVENÇÃO MANUAL (ROADMAP FASE 3)
+        # =====================================================================
+        current_url = page.url.lower()
+        page_title = (await page.title()).lower()
+        html_content_lower = (await page.content()).lower()
+
+        # 1. Verifica redirecionamento para Authwall ou Login
+        is_blocked_url = any(term in current_url for term in ["/login", "/checkpoint", "/authwall"])
+        
+        # 2. Verifica títulos de bloqueio ("Olá novamente", "Sign in")
+        is_blocked_title = any(term in page_title for term in ["olá novamente", "sign in", "entrar"])
+        
+        # 3. Detecta "Guest View" (Shadow Ban identificado no debug)
+        is_guest_view = "d_jobs_guest_details" in html_content_lower or "para se cadastrar ou entrar" in html_content_lower
+
+        if is_blocked_url or is_blocked_title or is_guest_view:
+            if settings.interactive_login and not settings.playwright_headless:
+                print("\n" + "!"*70)
+                print("🚨 BLOQUEIO DETECTADO: O LinkedIn exige login ou captcha! 🚨")
+                print("Acesse a janela do navegador agora, faça o login e resolva os desafios.")
+                print("!"*70 + "\n")
+                
+                # Pausa o loop de eventos para interação humana
+                await asyncio.to_thread(input, "👉 Após carregar o feed do LinkedIn, pressione [ENTER] aqui para continuar... ")
+                
+                print("\n✅ Sessão recuperada! Atualizando storage_state.json...")
+                if settings.storage_state_path:
+                    await context.storage_state(path=settings.storage_state_path)
+                
+                # Retorna para a vaga original com a nova sessão ativa
+                print(f"🔄 Recarregando a vaga: {url}")
+                await page.goto(url, wait_until="domcontentloaded", timeout=settings.playwright_timeout_ms)
+                await page.wait_for_timeout(3000)
+            else:
+                print("\n⚠️ Bloqueio detectado, mas INTERACTIVE_LOGIN está OFF ou em modo Headless.")
+
+        # Captura de dados finais após possível intervenção
         final_url = page.url
         page_title = await page.title()
         html = await page.content()
 
-        print(f"[DEBUG] FINAL_URL = {final_url}")
-        print(f"[DEBUG] PAGE_TITLE = {page_title}")
-
+        # Debug logs atualizados
         debug_dir = Path("data/debug")
         debug_dir.mkdir(parents=True, exist_ok=True)
-
         (debug_dir / "final_url.txt").write_text(final_url, encoding="utf-8")
         (debug_dir / "page_title.txt").write_text(page_title, encoding="utf-8")
         (debug_dir / "linkedin_page.html").write_text(html, encoding="utf-8")
-        await page.screenshot(path=str(debug_dir / "linkedin_page.png"), full_page=True)
-
-        ready_signals = [
-            "Sobre a vaga",
-            "Candidatar-se",
-            "Candidate-se",
-            "Não aceita mais candidaturas",
-            'data-testid="expandable-text-box"',
-            'href="/company/',
-            "Mais vagas",
-        ]
-        print(f"[DEBUG] READY_SIGNAL_FOUND = {any(signal in html for signal in ready_signals)}")
 
         apply_url = await capture_apply_url(page, html)
 
@@ -78,15 +101,11 @@ async def fetch_linkedin_page(url: str) -> RawPage:
         if settings.save_screenshot_on_fetch:
             shots_dir = Path("data/screenshots")
             shots_dir.mkdir(parents=True, exist_ok=True)
-            screenshot_path = str(shots_dir / "last_fetch.png")
+            screenshot_path = str(shots_dir / f"fetch_{random.randint(1000,9999)}.png")
             await page.screenshot(path=screenshot_path, full_page=True)
 
         if not settings.playwright_headless:
             await page.wait_for_timeout(2000)
-
-        final_url = page.url
-        html = await page.content()
-        title = await page.title()
 
         await context.close()
         await browser.close()
@@ -95,7 +114,7 @@ async def fetch_linkedin_page(url: str) -> RawPage:
             url=url,
             final_url=final_url,
             html=html,
-            title=title,
+            title=page_title,
             screenshot_path=screenshot_path,
             storage_state_used=bool(storage),
             apply_url=apply_url,

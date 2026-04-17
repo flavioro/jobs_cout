@@ -422,7 +422,7 @@ async def update_job_ai_enrichment(
     fit_score: int, 
     fit_rationale: str, 
     skills: list[str], 
-    salary_raw: str | None,
+    seniority_normalized: str | None,
     english_level: EnglishLevel
 ) -> Job | None:
     """Atualiza um Job existente com os resultados gerados pela Groq LLM."""
@@ -433,7 +433,8 @@ async def update_job_ai_enrichment(
     job.fit_score = fit_score
     job.fit_rationale = fit_rationale
     job.skills = skills
-    job.salary_raw = salary_raw
+    if seniority_normalized:
+        job.seniority_normalized = seniority_normalized
     job.english_level = english_level.value
     job.updated_at = datetime.now(timezone.utc)
     

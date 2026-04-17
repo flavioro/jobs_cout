@@ -22,7 +22,7 @@ async def test_enrich_pending_jobs_updates_db_correctly(tmp_path, monkeypatch):
             "skills": ["Python", "FastAPI"],
             "fit_score": 90,
             "fit_rationale": "Você tem as skills necessárias.",
-            "salary_raw": "R$ 10.000",
+            "seniority_suggestion": "junior",
             "english_level": "advanced"
         }
         """))
@@ -41,6 +41,7 @@ async def test_enrich_pending_jobs_updates_db_correctly(tmp_path, monkeypatch):
         mock_job.url = "http://link.com"
         mock_job.company = "Tech Corp"
         mock_job.description_text = "Vaga para Python e FastAPI"
+        mock_job.seniority_normalized = None
         
         with patch("src.services.ai_enrichment_service.get_pending_jobs_for_enrichment", return_value=[mock_job]):
             with patch("src.services.ai_enrichment_service.update_job_ai_enrichment") as mock_update:
@@ -56,6 +57,6 @@ async def test_enrich_pending_jobs_updates_db_correctly(tmp_path, monkeypatch):
                     fit_score=90,
                     fit_rationale="Você tem as skills necessárias.",
                     skills=["Python", "FastAPI"],
-                    salary_raw="R$ 10.000",
+                    seniority_normalized="junior",
                     english_level=EnglishLevel.ADVANCED
                 )

@@ -15,6 +15,9 @@ from src.services.persistence_service import (
 from src.utils.text import find_blocking_keyword
 from src.schemas.jobs import EnrichmentFilters
 
+# Importação do prompt centralizado
+from src.core.prompts import ENRICHMENT_SYSTEM_PROMPT
+
 logger = structlog.get_logger(__name__)
 
 # Schema interno para validar a resposta exata da Groq
@@ -22,7 +25,7 @@ class GroqJobAnalysis(BaseModel):
     skills: list[str]
     fit_score: int
     fit_rationale: str
-    salary_raw: str | None
+    seniority_suggestion: str | None
     english_level: str
 
 
@@ -36,90 +39,68 @@ async def enrich_pending_jobs(session: AsyncSession, limit: int = 10, filters: E
     client = AsyncGroq(api_key=settings.groq_api_key)
 
     jobs_to_process = await get_pending_jobs_for_enrichment(session, limit=limit, filters=filters)
-
+    
     if not jobs_to_process:
-        return {"message": "Nenhuma vaga pendente de enriquecimento encontrada.", "processed": 0, "blocked": 0}
+        logger.info("ai_enrichment.no_jobs_found")
+        return {"status": "success", "processed": 0, "blocked": 0, "failed": 0, "details": []}
 
-    processed = 0
-    blocked = 0
-    failed = 0
     results = []
-
-    # O Prompt de Sistema que dita as regras do JSON e do Perfil
-    system_prompt = f"""
-    Você é um assistente de recrutamento especializado em TI (Agentic AI).
-    Sua missão é extrair dados de descrições de vagas de emprego e avaliar a compatibilidade (Match) com o candidato.
-    
-    PERFIL DO CANDIDATO:
-    {settings.user_profile_context}
-    
-    INSTRUÇÕES DE SAÍDA:
-    Você deve retornar ESTRITAMENTE um objeto JSON válido. Nenhuma palavra fora do JSON.
-    O JSON deve ter exatamente a seguinte estrutura:
-    {{
-        "skills": ["Lista", "de", "Habilidades", "mencionadas"],
-        "fit_score": <inteiro de 0 a 100 baseada na aderência ao perfil do candidato>,
-        "fit_rationale": "<Texto explicando o motivo da nota, em primeira pessoa, referindo-se ao candidato como 'você'>",
-        "salary_raw": "<Texto do salário se mencionado na vaga, ou null se não encontrar>",
-        "english_level": "<DEVE ser um destes valores exatos: not_mentioned, none_required, basic, intermediate, advanced, fluent, implicit>"
-    }}
-    
-    REGRAS DO ENGLISH LEVEL:
-    - implicit: Se a vaga estiver toda escrita em inglês, mas não exigir nível explicitamente.
-    - not_mentioned: Se estiver em português e não falar de idiomas.
-    - none_required: Se disser expressamente que não precisa de inglês.
-    - Caso contrário, classifique no nível solicitado.
-    """
+    processed = 0
+    failed = 0
+    blocked = 0 # CORREÇÃO: Contador de bloqueados
 
     for job in jobs_to_process:
-        # --- NOVO: SEGUNDO PORTÃO DE SEGURANÇA (BLOCKLIST) ---
-        blocked_word = find_blocking_keyword(job.title, settings.parsed_title_blocklist)
-        if blocked_word:
-            reason = f"Bloqueio tardio no enriquecimento: '{blocked_word}'"
-            logger.info("job.blocked_during_enrichment", job_id=job.id, title=job.title)
-            
-            # 1. Salva na tabela de bloqueadas (sem duplicar)
-            await save_blocked_job(
-                session=session,
-                source=job.source,
-                url=job.url,
-                title=job.title,
-                company=job.company,
-                block_reason=reason
-            )
-            
-            # 2. Remove da tabela principal de jobs
-            await delete_job(session, job.id)
-            
-            blocked += 1
-            results.append({"job_id": job.id, "title": job.title, "status": "blocked_by_title"})
-            continue
-        # ---------------------------------------------------
-
         try:
-            logger.info("ai_enrichment.started", job_id=job.id, title=job.title)
-            
-            completion = await client.chat.completions.create(
+            # CORREÇÃO: Lógica do Porteiro (Blocklist) reativada antes de gastar tokens da IA
+            blocked_word = find_blocking_keyword(job.title, settings.parsed_title_blocklist)
+            if blocked_word:
+                reason_text = f"Palavra bloqueada no enriquecimento: '{blocked_word}'"
+                await save_blocked_job(
+                    session=session,
+                    source=job.source,
+                    url=job.url,
+                    title=job.title,
+                    company=job.company,
+                    block_reason=reason_text
+                )
+                await delete_job(session, job.id)
+                blocked += 1
+                results.append({"job_id": job.id, "status": "blocked"})
+                logger.info("ai_enrichment.blocked", job_id=job.id, reason=reason_text)
+                continue
+
+            # Contexto para o LLM
+            job_context = {
+                "title": job.title,
+                "seniority_current": job.seniority_normalized,
+                "description": job.description_text[:6000] if job.description_text else ""
+            }
+
+            # Chamada para a API da Groq
+            response = await client.chat.completions.create(
                 model=settings.groq_model,
                 messages=[
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": f"DESCRIÇÃO DA VAGA:\n{job.description_text}"}
+                    {"role": "system", "content": ENRICHMENT_SYSTEM_PROMPT},
+                    {
+                        "role": "user", 
+                        "content": f"Avalie a seguinte vaga para o candidato com este perfil:\n\nPERFIL: {settings.user_profile_context}\n\nVAGA (JSON):\n{json.dumps(job_context)}"
+                    }
                 ],
-                temperature=0.1, # Temperatura baixa para garantir consistência no JSON
-                response_format={"type": "json_object"} # Força a Groq a devolver apenas JSON
+                response_format={"type": "json_object"}
             )
 
-            response_content = completion.choices[0].message.content
-            
-            # Converte a string JSON para Dicionário e depois valida com Pydantic
-            raw_json = json.loads(response_content)
-            analysis = GroqJobAnalysis.model_validate(raw_json)
+            # Extração e validação do JSON
+            content = response.choices[0].message.content
+            analysis = GroqJobAnalysis.model_validate_json(content)
 
-            # Mapeamento do Enum de Inglês com fallback seguro
             try:
                 english_enum = EnglishLevel(analysis.english_level.lower())
             except ValueError:
                 english_enum = EnglishLevel.NOT_MENTIONED
+
+            seniority_to_update = None
+            if not job.seniority_normalized and analysis.seniority_suggestion and analysis.seniority_suggestion.lower() != "none":
+                seniority_to_update = analysis.seniority_suggestion.lower()
 
             # Salva na Base de Dados
             await update_job_ai_enrichment(
@@ -128,8 +109,8 @@ async def enrich_pending_jobs(session: AsyncSession, limit: int = 10, filters: E
                 fit_score=analysis.fit_score,
                 fit_rationale=analysis.fit_rationale,
                 skills=analysis.skills,
-                salary_raw=analysis.salary_raw,
-                english_level=english_enum
+                english_level=english_enum,
+                seniority_normalized=seniority_to_update
             )
 
             processed += 1
@@ -146,9 +127,9 @@ async def enrich_pending_jobs(session: AsyncSession, limit: int = 10, filters: E
             logger.error("ai_enrichment.api_error", job_id=job.id, error=str(e))
 
     return {
-        "requested_limit": limit,
+        "status": "completed",
         "processed": processed,
-        "blocked": blocked,
+        "blocked": blocked, # CORREÇÃO: Passado no return para o teste validar
         "failed": failed,
-        "items": results
+        "details": results
     }
