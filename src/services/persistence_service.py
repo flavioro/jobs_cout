@@ -101,12 +101,40 @@ async def get_pending_jobs_for_enrichment(
     result = await session.execute(stmt)
     return list(result.scalars().all())
 
-async def upsert_job(session: AsyncSession, record: JobRecordSchema) -> Job:
+async def upsert_job(session: AsyncSession, record: JobRecordSchema) -> Job | None:
+    """
+    Insere ou atualiza uma vaga com validação rigorosa e controle por Canonical URL.
+    """
+    # 1. VALIDAÇÃO RIGOROSA: Título, Empresa e Descrição são obrigatórios
+    if not record.title or not record.company or not record.description_text:
+        logger.error(
+            "upsert_job.rejected.missing_required_fields",
+            url=record.url,
+            has_title=bool(record.title),
+            has_company=bool(record.company),
+            has_description=bool(record.description_text)
+        )
+        return None
+
+    # 2. CONTROLE DE DUPLICIDADE: Busca apenas pela URL canônica
+    # Removemos a dependência do fingerprint para evitar duplicatas se a descrição mudar
     result = await session.execute(
-        select(Job).where(Job.canonical_url == record.canonical_url).where(Job.fingerprint == record.fingerprint)
+        select(Job).where(Job.canonical_url == record.canonical_url)
     )
     existing = result.scalar_one_or_none()
+
     if existing:
+        # Atualização da vaga existente (preservando campos críticos de sistema)
+        exclude_fields = {"id", "source", "canonical_url", "related_jobs", "created_at"}
+        update_data = record.model_dump(exclude=exclude_fields, exclude_unset=True)
+
+        for key, value in update_data.items():
+            if value is not None:
+                setattr(existing, key, value)
+                
+        # Atualiza a data e garante que o novo fingerprint (se a descrição mudou) é guardado
+        existing.updated_at = datetime.now(timezone.utc)
+
         existing.external_id = record.external_id
         existing.title = record.title
         existing.company = record.company
@@ -129,6 +157,7 @@ async def upsert_job(session: AsyncSession, record: JobRecordSchema) -> Job:
         await _sync_related_rows_for_job(session, existing)
         await session.commit()
         await session.refresh(existing)
+        logger.info("upsert_job.updated", job_id=existing.id, url=record.canonical_url)
         return existing
 
     job = Job(

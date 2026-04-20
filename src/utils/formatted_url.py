@@ -2,19 +2,37 @@ import re
 
 # Cole seu texto bruto aqui dentro das aspas triplas
 texto_bruto = """
-https://linkedin.com/comm/jobs/view/4399068226/
-https://linkedin.com/comm/jobs/view/4399788834/
-https://linkedin.com/comm/jobs/view/4401536665/
-https://linkedin.com/comm/jobs/view/4399644111/
-https://linkedin.com/comm/jobs/view/4401594884/
-https://linkedin.com/comm/jobs/view/4400740159/
-https://linkedin.com/comm/jobs/view/4399663660/
-https://linkedin.com/comm/jobs/view/4401378681/
-https://linkedin.com/comm/jobs/view/4399774075/
-https://linkedin.com/comm/jobs/view/4401066796/
-https://linkedin.com/comm/jobs/view/4399645540/
-https://linkedin.com/comm/jobs/view/4364005493/
+https://www.linkedin.com/jobs/view/4403576258
 
+https://www.linkedin.com/jobs/view/4400886931
+
+https://www.linkedin.com/jobs/view/4400881057
+
+https://www.linkedin.com/jobs/view/4400895044
+
+https://www.linkedin.com/jobs/view/4403570312
+
+https://www.linkedin.com/jobs/view/4402636670
+
+https://www.linkedin.com/jobs/view/4402396738
+
+https://www.linkedin.com/jobs/view/4403521473
+
+https://www.linkedin.com/jobs/view/4402636670
+
+https://www.linkedin.com/jobs/view/4400884142
+
+https://www.linkedin.com/jobs/view/4403568199
+
+https://www.linkedin.com/jobs/view/4403537511
+
+https://www.linkedin.com/jobs/view/4362188533
+
+https://www.linkedin.com/jobs/view/4403540019
+
+https://www.linkedin.com/jobs/view/4400881955
+
+https://www.linkedin.com/jobs/view/4400895050
 
 """
 

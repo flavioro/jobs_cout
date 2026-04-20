@@ -55,6 +55,25 @@ async def ingest_linkedin_request(request: IngestUrlRequest, session: AsyncSessi
 
     job = await upsert_job(session, record)
 
+    # CORREÇÃO: Lidar com vagas rejeitadas pelo persistence_service retornando o schema correto
+    if not job:
+        logger.warning("ingest_linkedin_request.rejected", url=record.url, reason="missing_core_fields")
+        return IngestUrlResponse(
+            status="rejected",
+            source=record.source.value,
+            job_id=None,
+            parser_version=record.parser_version,
+            confirmation=ConfirmationPayload(
+                title="missing",
+                company="missing",
+                location_raw="missing",
+                is_easy_apply="missing",
+                seniority_hint="missing",
+                workplace_type="missing"
+            ),
+            job=None
+        )
+
     confirmation = ConfirmationPayload(
         title=compare_optional_hint(request.title, record.title),
         company=compare_optional_hint(request.company, record.company),

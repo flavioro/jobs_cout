@@ -1,1 +1,5 @@
 powershell -ExecutionPolicy Bypass -File .\scripts\powershell\run_linkedin_related_jobs_promote_pending.ps1 -Limit 10
+
+powershell -ExecutionPolicy Bypass -File .\scripts\powershell\run_all.ps1
+
+powershell -ExecutionPolicy Bypass -File .\scripts\powershell\run_api_posts.ps1
