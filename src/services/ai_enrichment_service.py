@@ -1,11 +1,12 @@
 import json
 import structlog
+import dspy
 from groq import AsyncGroq
 from pydantic import BaseModel, ValidationError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.config import get_settings
-from src.core.enums import EnglishLevel
+from src.core.enums import EnglishLevel, SeniorityLevel, JobSector 
 from src.services.persistence_service import (
     get_pending_jobs_for_enrichment, 
     update_job_ai_enrichment,
@@ -14,20 +15,34 @@ from src.services.persistence_service import (
 )
 from src.utils.text import find_blocking_keyword
 from src.schemas.jobs import EnrichmentFilters
+from src.schemas.ai import GroqJobAnalysis
 
 # Importação do prompt centralizado
 from src.core.prompts import ENRICHMENT_SYSTEM_PROMPT
 
 logger = structlog.get_logger(__name__)
 
-# Schema interno para validar a resposta exata da Groq
-class GroqJobAnalysis(BaseModel):
-    skills: list[str]
-    fit_score: int
-    fit_rationale: str
-    seniority_suggestion: str | None
-    english_level: str
-
+# Atualize a Signature do DSPy
+class ExtractJobDetails(dspy.Signature):
+    """Analise o título, empresa e descrição da vaga para extrair informações estruturadas."""
+    
+    title: str = dspy.InputField(desc="O título original da vaga.")
+    company: str = dspy.InputField(desc="O nome da empresa contratante.")
+    description_text: str = dspy.InputField(desc="O corpo de texto completo da vaga.")
+    
+    seniority_normalized: SeniorityLevel = dspy.OutputField(
+        desc="Classifique o nível de senioridade exigido. Responda apenas com os valores permitidos do enum."
+    )
+    
+    # NOVO CAMPO DE OUTPUT:
+    sector: JobSector = dspy.OutputField(
+        desc=(
+            "Analise a descrição e o nome da empresa e classifique o setor de atuação. "
+            "Se a empresa for uma fábrica fazendo software internamente, escolha 'Indústria'. "
+            "Se for uma software house, escolha 'Produto de Software' ou 'Consultoria'. "
+            "Responda EXATAMENTE com um dos valores permitidos do enum."
+        )
+    )
 
 async def enrich_pending_jobs(session: AsyncSession, limit: int = 10, filters: EnrichmentFilters | None = None) -> dict:
     settings = get_settings()
@@ -47,7 +62,7 @@ async def enrich_pending_jobs(session: AsyncSession, limit: int = 10, filters: E
     results = []
     processed = 0
     failed = 0
-    blocked = 0 # CORREÇÃO: Contador de bloqueados
+    blocked = 0
 
     for job in jobs_to_process:
         try:
@@ -110,7 +125,8 @@ async def enrich_pending_jobs(session: AsyncSession, limit: int = 10, filters: E
                 fit_rationale=analysis.fit_rationale,
                 skills=analysis.skills,
                 english_level=english_enum,
-                seniority_normalized=seniority_to_update
+                seniority_normalized=seniority_to_update,
+                sector=analysis.sector
             )
 
             processed += 1
@@ -129,7 +145,7 @@ async def enrich_pending_jobs(session: AsyncSession, limit: int = 10, filters: E
     return {
         "status": "completed",
         "processed": processed,
-        "blocked": blocked, # CORREÇÃO: Passado no return para o teste validar
+        "blocked": blocked,
         "failed": failed,
         "details": results
     }

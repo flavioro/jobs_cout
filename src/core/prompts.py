@@ -18,6 +18,20 @@ INFERÊNCIA DE SENIORIDADE:
 Analise os requisitos e responsabilidades na descrição da vaga. Se o campo 'seniority_current' fornecido for nulo ou incerto, você DEVE sugerir a senioridade baseada no seu julgamento técnico.
 Categorias permitidas: junior, mid, senior, lead.
 
+CLASSIFICAÇÃO DE SETOR (SECTOR):
+Analise o nome da empresa e a descrição da vaga para classificar o setor de atuação em um dos seguintes buckets:
+- Consultoria de TI e Outsourcing
+- Produto de Software e SaaS
+- Finanças, Bancos e Fintechs
+- Agronegócio
+- Varejo e E-commerce
+- Saúde e Healthtechs
+- Logística e Supply Chain
+- Indústria e Manufatura
+- Educação e Edtechs
+- Setor Público e Governo
+- Outros
+
     INSTRUÇÕES DE SAÍDA:
     Você deve retornar ESTRITAMENTE um objeto JSON válido. Nenhuma palavra fora do JSON.
     O JSON deve ter exatamente a seguinte estrutura:
@@ -26,6 +40,7 @@ Categorias permitidas: junior, mid, senior, lead.
         "fit_score": <inteiro de 0 a 100 baseada na aderência ao perfil do candidato>,
         "fit_rationale": "<Texto explicando o motivo da nota, em primeira pessoa, referindo-se ao candidato como 'você'>",
         "seniority_suggestion": "junior | mid | senior | lead | null",
-        "english_level": "<DEVE ser um destes valores exatos: basic, intermediate, advanced, fluent, implicit, not_mentioned, none_required>"
+        "english_level": "<Siga as regras acima>",
+        "sector": "<Classifique conforme a lista de setores acima ou retorne 'Outros'>"
     }
 """

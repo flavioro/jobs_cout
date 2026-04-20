@@ -452,12 +452,16 @@ async def update_job_ai_enrichment(
     fit_rationale: str, 
     skills: list[str], 
     seniority_normalized: str | None,
-    english_level: EnglishLevel
+    english_level: EnglishLevel,
+    sector: str | None = None
 ) -> Job | None:
     """Atualiza um Job existente com os resultados gerados pela Groq LLM."""
     job = await session.scalar(select(Job).where(Job.id == job_id))
     if not job:
         return None
+
+    if sector:
+        job.sector = sector
         
     job.fit_score = fit_score
     job.fit_rationale = fit_rationale
