@@ -1,5 +1,25 @@
 from enum import Enum
 
+class JobSector(str, Enum):
+    # Tecnologia Pura
+    TI_CONSULTING = "Consultoria de TI e Outsourcing"
+    SOFTWARE_PRODUCT = "Produto de Software e SaaS"
+    CYBERSECURITY = "Cibersegurança"
+    DATA_AI = "Dados e Inteligência Artificial"
+    
+    # Setores Tradicionais com forte área tech
+    FINANCE = "Finanças, Bancos e Fintechs"
+    RETAIL_ECOMMERCE = "Varejo e E-commerce"
+    HEALTHCARE = "Saúde e Healthtechs"
+    EDUCATION = "Educação e Edtechs"
+    INDUSTRY_MANUFACTURING = "Indústria e Manufatura"
+    LOGISTICS = "Logística e Supply Chain"
+    GOVERNMENT = "Setor Público e Governo"
+    AGROTECH = "Agronegócio"
+    
+    # Fallback
+    OTHER = "Outros"
+    UNKNOWN = "Desconhecido"
 
 class JobSource(str, Enum):
     LINKEDIN = "linkedin"

@@ -1,5 +1,8 @@
 import sqlite3
 from pathlib import Path
+import asyncio
+from sqlalchemy import text  # <-- ADICIONE ESTA LINHA AQUI
+from src.db.session import engine
 
 def run_migration():
     # Caminho exato onde seu banco está
@@ -32,5 +35,20 @@ def run_migration():
     conn.close()
     print("\nMigração das colunas concluída com sucesso! Seus dados antigos estão seguros e a base está pronta para a IA.")
 
+# No seu ficheiro de migração
+async def add_sector_column():
+    async with engine.begin() as conn:
+        try:
+            # Comando específico do SQLite para adicionar coluna
+            await conn.execute(text("ALTER TABLE jobs ADD COLUMN sector VARCHAR(100);"))
+            print("✅ Coluna 'sector' adicionada com sucesso.")
+        except Exception as e:
+            if "duplicate column name" in str(e).lower():
+                print("ℹ️ Coluna 'sector' já existe.")
+            else:
+                print(f"❌ Erro ao adicionar coluna: {e}")
+
 if __name__ == "__main__":
-    run_migration()
+    # O asyncio.run() cria o loop de eventos necessário para executar a função async
+    asyncio.run(add_sector_column())
+

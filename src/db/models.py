@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime, timezone
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, Index, Integer, String, Text, UniqueConstraint, JSON
+from sqlalchemy import Column, Boolean, DateTime, ForeignKey, Index, Integer, String, Text, UniqueConstraint, JSON
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from src.db.base import Base
@@ -24,6 +24,8 @@ class Job(Base):
 
     seniority_raw: Mapped[str | None] = mapped_column(String(100), nullable=True)
     seniority_normalized: Mapped[str | None] = mapped_column(String(50), nullable=True)
+
+    sector = Column(String(100), nullable=True)
 
     is_easy_apply: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
     availability_status: Mapped[str | None] = mapped_column(String(50), nullable=True, index=True)
