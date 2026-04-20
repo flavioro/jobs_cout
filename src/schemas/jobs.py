@@ -11,6 +11,7 @@ from src.core.enums import (
     SeniorityLevel,
     WorkplaceType,
     EnglishLevel,
+    JobSector,
 )
 from src.utils.url import is_supported_linkedin_url
 
@@ -84,6 +85,7 @@ class JobRecordSchema(BaseModel):
     apply_url: str | None = None
     title: str | None = None
     company: str | None = None
+    sector: JobSector | None = None
     location_raw: str | None = None
     workplace_type: WorkplaceType | None = None
     seniority_raw: str | None = None
