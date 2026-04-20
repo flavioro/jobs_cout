@@ -1,6 +1,64 @@
-# JobScout v2.2 (Agentic AI + CRM Integration)
+# 🎯 JobScout v2.2 (Agentic AI + CRM Integration)
+
+Sistema de inteligência para mineração, padronização e enriquecimento de vagas de emprego usando Playwright e LLMs (Groq).
+
+## 🚀 Funcionalidades Atuais (O que já funciona)
+* **Ingestão Resiliente:** Web Scraping antibloqueio no LinkedIn (bypassing Authwalls e Guest Views via Playwright).
+* **Controle Estrito de Dados:** Validação Pydantic que bloqueia "vagas fantasma" e impede duplicação usando URLs canônicas.
+* **Filtros e Blocklist:** Motor que rejeita sumariamente vagas indesejadas (ex: SDR, Vendas, C-Level) via `blocking_keywords`.
+* **AI Enrichment Loop:** Integração com Groq + DSPy para análise semântica assíncrona, extraindo:
+  * Nível real de senioridade (Júnior, Pleno, Sénior).
+  * Setor da indústria (TI, Financeiro, E-commerce, etc).
+  * Fit Score e Rationale customizado para o perfil do candidato.
+* **Gestão de Sugestões:** Extração e normalização de "Vagas Relacionadas" da barra lateral do LinkedIn.
+
+## 🏗️ Arquitetura do Sistema
+O JobScout opera como um pipeline de dados assíncrono dividido em 4 estágios principais:
+
+Ingestion Layer: O crawler utiliza Playwright para extrair o DOM das vagas, lidando com estados de login e modais.
+
+Validation Layer: Os dados brutos são convertidos em instâncias Pydantic (JobRecordSchema), onde passam por filtros de palavras bloqueadas.
+
+Storage Layer: Vagas válidas são persistidas no SQLite. Vagas relacionadas são enviadas para uma fila de processamento (related_jobs).
+
+Enrichment Layer (Agentic Loop): O serviço de IA consome vagas pendentes, utiliza o DSPy para estruturar o prompt e a Groq (Llama 3.3) para realizar a análise semântica e classificação de setores.
+
+## ⚙️ Guia de Configuração (.env)
+Para rodar o projeto, crie um arquivo .env na raiz com as seguintes chaves:
+# API Keys
+GROQ_API_KEY="sua_chave_aqui"
+GROQ_MODEL="llama-3.3-70b-versatile"
+
+# Contexto do Candidato (Usado pela IA para calcular o Fit Score)
+USER_PROFILE_CONTEXT="Engenheiro de Software Backend (Pleno)... [ver exemplo no .env.example]"
+
+# Configurações de Scraping
+HEADLESS=True
+SCRAPE_LIMIT=20
+
+## 📖 Documentação da API
+O projeto utiliza FastAPI, o que garante documentação automática e interativa. Com o servidor rodando (uvicorn src.main:app), você pode acessar:
+
+Swagger UI: http://127.0.0.1:8000/docs - Para testar os endpoints de ingestão e enriquecimento manualmente.
+
+ReDoc: http://127.0.0.1:8000/redoc - Documentação técnica detalhada dos schemas.
+
+## 🗺️ Roadmap (O que pretendemos adicionar)
+* [ ] Dashboards analíticos e estatísticas de mercado.
+* [ ] Alertas automatizados para o Telegram/Discord.
+* [ ] Suporte a novas fontes (Gupy, Glassdoor).
 
 Pipeline profissional para ingestão de vagas do LinkedIn e enriquecimento inteligente de dados via Groq (Llama 3.3), focado em engenharia de software pragmática e transição de carreira para Applied AI.
+
+## 🧪 Testes e Qualidade
+O projeto mantém uma cobertura rigorosa com mais de 130 testes unitários.
+# No Windows (PowerShell)
+powershell -ExecutionPolicy Bypass -File .\scripts\powershell\run_pytest.ps1
+
+## 📝 Notas de Implementação
+O campo sector é inferido dinamicamente pelo LLM com base na descrição e nome da empresa, sendo mapeado para um Enum padronizado para evitar redundâncias no banco de dados.
+
+A persistência utiliza SQLAlchemy Async, garantindo que o loop de eventos da API não seja bloqueado durante operações de I/O.
 
 ## 🚀 Status do Projeto: Funcional & Inteligente
 - **Ingestão & Blocklist:** Extração bruta via Playwright com bloqueio automático e deduplicado por título indesejado.
