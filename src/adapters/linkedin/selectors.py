@@ -5,8 +5,19 @@ LINKEDIN_SELECTORS = {
         "main p[class*='ff51c93b']",
         "section p[class*='ff51c93b']",
         ".top-card-layout__title",
+        "[data-testid='job-title']",
         ".job-details-jobs-unified-top-card__job-title h1",
+        ".job-details-jobs-unified-top-card__job-title",
+
+       # 3. Tags Genéricas
+        "h1.t-24",
+        "h1.t-bold",
+        "main h1",
         "h1",
+        
+        # 4. ÚLTIMO RECURSO: O Alerta de Vagas (Fallback sugerido)
+        "h2:-soup-contains('Ative um alerta para vagas semelhantes') + div p",        
+        "h2:-soup-contains('Ative um alerta para vagas semelhantes') + p",
     ],
     "company": [
         "a[href*='/company/']",

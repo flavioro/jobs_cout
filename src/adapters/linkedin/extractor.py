@@ -21,10 +21,16 @@ def parse_from_page_title(page_title: str | None) -> tuple[str | None, str | Non
         return None, None
 
     parts = [p.strip() for p in page_title.split("|") if p.strip()]
-    if len(parts) >= 3 and parts[-1].lower() == "linkedin":
-        title = parts[0]
-        company = parts[-2]
-        return title, company
+    
+    # Caso 1: Título | Empresa | LinkedIn (Padrão completo)
+    if len(parts) >= 3:
+        return parts[0], parts[1]
+    
+    # Caso 2: Empresa | LinkedIn (O seu caso atual)
+    # Retornamos (None, Empresa) para não poluir o campo de título com o nome da empresa
+    if len(parts) == 2 and parts[-1].lower() == "linkedin":
+        return None, parts[0]
+        
     return None, None
 
 
@@ -45,11 +51,18 @@ class LinkedInExtractor:
             return None
 
         title = find_first_text(LINKEDIN_SELECTORS["title"])
+
+        if title and "," in title:
+            parts = title.split(",")
+            # Se a primeira parte for curta, provavelmente é o cargo vindo do alerta
+            if len(parts) > 1 and len(parts[0]) < 100:
+                title = parts[0].strip()
+
         company = find_first_text(LINKEDIN_SELECTORS["company"])
         description_text = find_first_text(LINKEDIN_SELECTORS["description"])
 
         title_from_tab, company_from_tab = parse_from_page_title(raw_page.title)
-        raw_title_candidate = title or title_from_tab
+        raw_title_candidate = title_from_tab or title
         company = company or company_from_tab
         title = sanitize_title(raw_title_candidate, company)
 
@@ -58,6 +71,11 @@ class LinkedInExtractor:
         main_region = soup.select_one("main") or soup
         primary_text = clean_text(main_region.get_text(" ", strip=True)) or ""
         primary_text_lower = primary_text.lower()
+
+	# No extractor.py
+        raw_title_candidate = title or title_from_tab
+        print(f"DEBUG: Título Bruto Encontrado: {raw_title_candidate}") # <-- ADICIONE ISSO
+
         if "mais vagas" in primary_text_lower:
             primary_text = primary_text[: primary_text_lower.index("mais vagas")].strip()
         availability_status, closed_reason = detect_availability(body_text)

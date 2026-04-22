@@ -101,7 +101,7 @@ async def fetch_linkedin_page(url: str) -> RawPage:
         if settings.save_screenshot_on_fetch:
             shots_dir = Path("data/screenshots")
             shots_dir.mkdir(parents=True, exist_ok=True)
-            screenshot_path = str(shots_dir / f"fetch_{random.randint(1000,9999)}.png")
+            screenshot_path = str(shots_dir / f"fetch_{random.randint(10,99)}.png")
             await page.screenshot(path=screenshot_path, full_page=True)
 
         if not settings.playwright_headless:
