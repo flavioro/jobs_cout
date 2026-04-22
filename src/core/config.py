@@ -16,6 +16,9 @@ class Settings(BaseSettings):
     raw_html_dir: str = "data/raw_html"
     storage_state_path: str = "data/storage_state.json"
 
+    google_storage_state_path: str = "data/google_storage_state.json"
+    google_login_url: str = "https://accounts.google.com/ServiceLogin"
+
     parser_version: str = "linkedin_v1.0"
 
     # Adicione junto das outras variáveis do Playwright

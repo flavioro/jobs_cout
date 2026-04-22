@@ -16,6 +16,14 @@ __pycache__/
 .env.*
 !.env.example
 
+# Dados de execução e perfis de automação
+data/**/*
+data/ai_responses_log*.json
+data/google_storage_state*.json
+data/gpt_profile/
+data/screenshots/
+data/debug/
+
 # Local LinkedIn session / secrets
 /data/storage_state.json
 
