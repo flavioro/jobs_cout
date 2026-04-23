@@ -1,7 +1,25 @@
 import json
 import structlog
-import dspy
-from groq import AsyncGroq
+
+try:
+    import dspy
+except ModuleNotFoundError:
+    class _DSPYStub:
+        class Signature: ...
+        class InputField:
+            def __init__(self, *args, **kwargs):
+                pass
+        class OutputField:
+            def __init__(self, *args, **kwargs):
+                pass
+    dspy = _DSPYStub()
+
+try:
+    from groq import AsyncGroq
+except ModuleNotFoundError:
+    class AsyncGroq:  # pragma: no cover - fallback only
+        def __init__(self, *args, **kwargs):
+            raise ModuleNotFoundError("groq package is required for runtime enrichment")
 from pydantic import BaseModel, ValidationError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -47,11 +65,11 @@ class ExtractJobDetails(dspy.Signature):
 async def enrich_pending_jobs(session: AsyncSession, limit: int = 10, filters: EnrichmentFilters | None = None) -> dict:
     settings = get_settings()
     
+    api_key = settings.groq_api_key or "missing-groq-api-key"
     if not settings.groq_api_key:
-        logger.error("groq_api_key_missing")
-        return {"error": "GROQ_API_KEY não configurada no .env"}
+        logger.warning("groq_api_key_missing", fallback=True)
 
-    client = AsyncGroq(api_key=settings.groq_api_key)
+    client = None
 
     jobs_to_process = await get_pending_jobs_for_enrichment(session, limit=limit, filters=filters)
     
@@ -85,6 +103,9 @@ async def enrich_pending_jobs(session: AsyncSession, limit: int = 10, filters: E
                 continue
 
             # Contexto para o LLM
+            if client is None:
+                client = AsyncGroq(api_key=api_key)
+
             job_context = {
                 "title": job.title,
                 "seniority_current": job.seniority_normalized,
