@@ -8,7 +8,7 @@ $ApiBaseUrl = "http://$ApiHost`:$ApiPort"
 $ApiKey = "changeme"
 
 $JobUrls = @(
-    "https://www.linkedin.com/jobs/view/4404427018"
+    "https://www.linkedin.com/jobs/view/4402742546"
 )
 
 $LogsDir = Join-Path $ProjectRoot "logs\powershell"

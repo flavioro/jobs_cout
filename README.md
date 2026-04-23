@@ -49,7 +49,7 @@ Mais detalhes estão em `docs/architecture.md`.
 ## Testes
 
 - unitários e integração: `pytest`
-- smoke manual para providers: `python scripts/test_chatgpt.py` e `python scripts/test_gemini.py`
+- smoke manual para providers: `python -m scripts.manual_chatgpt_check` e `python -m scripts.manual_gemini_check`
 
 ## Observação sobre browser AI
 
