@@ -1,6 +1,6 @@
 import pytest
 
-from src.adapters.ai_factory import AIAdapterFactory
+from src.adapters.ai_web.factory import AIAdapterFactory
 from src.adapters.ai_web.chatgpt.adapter import ChatGPTWebAdapter
 from src.adapters.ai_web.gemini.adapter import GeminiWebAdapter
 

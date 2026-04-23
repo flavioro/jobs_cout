@@ -1,4 +1,4 @@
-from src.adapters.ai_factory import AIAdapterFactory
+from src.adapters.ai_web.factory import AIAdapterFactory
 from src.adapters.ai_web.base.models import AIChatOptions, AIResponse
 
 

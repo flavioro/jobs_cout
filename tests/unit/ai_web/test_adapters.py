@@ -3,8 +3,8 @@ from unittest.mock import AsyncMock, patch
 import pytest
 
 from src.adapters.ai_web.base.models import AIResponse
-from src.adapters.chatgpt.adapter import ChatGPTAdapter
-from src.adapters.gemini.adapter import GeminiAdapter
+from src.adapters.ai_web.chatgpt.adapter import ChatGPTWebAdapter
+from src.adapters.ai_web.gemini.adapter import GeminiWebAdapter
 
 
 @pytest.mark.asyncio
@@ -18,7 +18,7 @@ async def test_chatgpt_adapter_logs_structured_response():
     )
 
     with patch("src.adapters.ai_web.chatgpt.adapter.save_ai_response") as save_log:
-        adapter = ChatGPTAdapter(fetcher)
+        adapter = ChatGPTWebAdapter(fetcher)
         result = await adapter.process_query("teste")
 
     assert result.text == "ok"
@@ -38,7 +38,7 @@ async def test_gemini_adapter_logs_errors_without_breaking():
     )
 
     with patch("src.adapters.ai_web.gemini.adapter.save_ai_response") as save_log:
-        adapter = GeminiAdapter(fetcher)
+        adapter = GeminiWebAdapter(fetcher)
         result = await adapter.process_query("teste")
 
     assert result.success is False

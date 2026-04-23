@@ -3,7 +3,7 @@ from pathlib import Path
 
 from playwright.async_api import async_playwright
 
-from src.adapters.ai_factory import AIAdapterFactory
+from src.adapters.ai_web.factory import AIAdapterFactory
 from src.core.config import get_settings
 from src.core.prompts_ai import get_ai_prompt
 
@@ -30,14 +30,17 @@ async def run_test():
         )
 
         page = context.pages[0] if context.pages else await context.new_page()
-        await page.add_init_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
+        await page.add_init_script(
+            "Object.defineProperty(navigator, 'webdriver', {get: () => undefined})"
+        )
 
         adapter = AIAdapterFactory.get_adapter("gemini", page)
         pergunta = get_ai_prompt("test_connection", provider="gemini")
         resposta = await adapter.process_query(pergunta)
 
         print("\n" + "=" * 50)
-        print(f"🤖 RESPOSTA FINAL:\n{resposta}")
+        print("🤖 RESPOSTA FINAL:")
+        print(resposta.text if hasattr(resposta, "text") else resposta)
         print("=" * 50)
 
         try:
