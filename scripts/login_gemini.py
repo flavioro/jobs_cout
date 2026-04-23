@@ -1,8 +1,10 @@
 import asyncio
 from pathlib import Path
+
 from playwright.async_api import async_playwright
 
 from src.core.config import get_settings
+
 
 async def main():
     settings = get_settings()
@@ -13,20 +15,17 @@ async def main():
         context = await p.chromium.launch_persistent_context(
             user_data_dir=str(user_data_dir),
             headless=False,
-            args=["--disable-blink-features=AutomationControlled"],
+            args=["--disable-blink-features=AutomationControlled", "--no-sandbox"],
             ignore_default_args=["--enable-automation"],
+            viewport={"width": 1280, "height": 720},
         )
-
         page = context.pages[0] if context.pages else await context.new_page()
-        await page.goto(settings.gemini_app_url)
+        await page.goto(settings.gemini_app_url, wait_until="domcontentloaded")
 
-        print("\n" + "!" * 50)
-        print("FAÇA LOGIN MANUALMENTE NO GEMINI/GOOGLE.")
-        print("Espere a tela principal do Gemini carregar completamente.")
-        print("!" * 50 + "\n")
-
-        input("Após o Gemini estar estável, pressione [ENTER] para fechar...")
+        print("Faça login manualmente no Gemini e confirme que a caixa de prompt está visível.")
+        input("Quando terminar, pressione ENTER para fechar o navegador... ")
         await context.close()
+
 
 if __name__ == "__main__":
     asyncio.run(main())

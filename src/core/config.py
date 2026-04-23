@@ -19,20 +19,22 @@ class Settings(BaseSettings):
     google_storage_state_path: str = "data/google_storage_state.json"
     google_login_url: str = "https://accounts.google.com/ServiceLogin"
 
-    ai_provider_default: str = "chatgpt"
-    ai_debug_dir: str = "data/debug"
     chatgpt_storage_state_path: str = "data/gpt_profile"
     chatgpt_app_url: str = "https://chatgpt.com"
+    chatgpt_chat_mode: str = "new_chat"
+    chatgpt_chat_url: str | None = None
+    chatgpt_prompt_timeout_ms: int = 15000
+    chatgpt_response_wait_s: float = 8.0
+
     gemini_storage_state_path: str = "data/gemini_profile"
     gemini_app_url: str = "https://gemini.google.com/app?pli=1"
+    gemini_chat_mode: str = "new_chat"
+    gemini_chat_url: str | None = None
     gemini_prompt_timeout_ms: int = 15000
     gemini_response_wait_s: float = 8.0
 
     parser_version: str = "linkedin_v1.0"
-
-    # Adicione junto das outras variáveis do Playwright
     interactive_login: bool = False
-
     log_level: str = "INFO"
 
     playwright_headless: bool = True
@@ -45,11 +47,8 @@ class Settings(BaseSettings):
     api_key: str = "changeme"
 
     save_screenshot_on_fetch: bool = False
-
-    # --- Fase 1: Blocklist ---
     job_title_blocklist: str = ""
 
-    # --- Fase 2: IA & Groq ---
     groq_api_key: str = ""
     groq_model: str = "llama3-70b-8192"
     user_profile_context: str = ""
