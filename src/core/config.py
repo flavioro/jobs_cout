@@ -19,6 +19,15 @@ class Settings(BaseSettings):
     google_storage_state_path: str = "data/google_storage_state.json"
     google_login_url: str = "https://accounts.google.com/ServiceLogin"
 
+    ai_provider_default: str = "chatgpt"
+    ai_debug_dir: str = "data/debug"
+    chatgpt_storage_state_path: str = "data/gpt_profile"
+    chatgpt_app_url: str = "https://chatgpt.com"
+    gemini_storage_state_path: str = "data/gemini_profile"
+    gemini_app_url: str = "https://gemini.google.com/app?pli=1"
+    gemini_prompt_timeout_ms: int = 15000
+    gemini_response_wait_s: float = 8.0
+
     parser_version: str = "linkedin_v1.0"
 
     # Adicione junto das outras variáveis do Playwright

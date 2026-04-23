@@ -6,7 +6,13 @@ from pathlib import Path
 
 from src.core.config import get_settings
 
-def save_ai_response(prompt: str, response: str, chat_url: str = None):
+def save_ai_response(
+    prompt: str,
+    response: str,
+    chat_url: str | None = None,
+    provider: str = "unknown",
+    metadata: dict | None = None,
+):
     """
     Salva o prompt e a resposta da IA em um arquivo JSON de log.
     """
@@ -16,9 +22,11 @@ def save_ai_response(prompt: str, response: str, chat_url: str = None):
 
     data = {
         "timestamp": datetime.now().isoformat(),
+        "provider": provider,
         "prompt": prompt,
         "response": response,
-        "chat_url": chat_url
+        "chat_url": chat_url,
+        "metadata": metadata or {},
     }
 
     # "a" abre o arquivo em modo append (adiciona ao final sem apagar o anterior)
