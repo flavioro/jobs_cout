@@ -1,7 +1,7 @@
 import json
 from pathlib import Path
 
-from src.utils.storage import save_ai_response
+from src.utils.storage import _validate_ai_log_payload, save_ai_response
 
 
 def test_save_ai_response_persists_provider_metadata_and_error(tmp_path: Path):
@@ -23,3 +23,24 @@ def test_save_ai_response_persists_provider_metadata_and_error(tmp_path: Path):
     assert data["provider"] == "gemini"
     assert data["metadata"]["selector_used"] == "div[contenteditable='true']"
     assert data["success"] is True
+
+
+def test_validate_ai_log_payload_normalizes_unexpected_types():
+    payload = _validate_ai_log_payload(
+        {
+            "provider": None,
+            "prompt": 123,
+            "response": 456,
+            "chat_url": 789,
+            "success": 1,
+            "metadata": "bad",
+            "error": 999,
+        }
+    )
+
+    assert payload["provider"] == "unknown"
+    assert payload["prompt"] == "123"
+    assert payload["response"] == "456"
+    assert payload["chat_url"] == "789"
+    assert payload["metadata"] == {}
+    assert payload["error"] == "999"
