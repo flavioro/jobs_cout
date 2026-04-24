@@ -25,3 +25,12 @@ class AIChatOptions:
     def resolved_mode(self) -> str:
         mode = (self.mode or "new_chat").strip().lower()
         return mode if mode in {"new_chat", "existing_chat"} else "new_chat"
+
+    def normalized(self) -> "AIChatOptions":
+        return AIChatOptions(
+            mode=self.resolved_mode(),
+            existing_chat_url=(self.existing_chat_url or None),
+            max_retries=max(0, int(self.max_retries)),
+            response_timeout_s=max(0.5, float(self.response_timeout_s)),
+            force_new_chat=bool(self.force_new_chat),
+        )

@@ -3,13 +3,16 @@ GEMINI_SELECTORS = {
         "div[contenteditable='true']",
         "div[role='textbox']",
         "textarea",
+        "rich-textarea div[contenteditable='true']",
     ],
     "send_button": [
         "button[aria-label*='Send message']",
         "button[aria-label*='Enviar mensagem']",
         "button.send-button",
+        "button[mattooltip*='Send']",
     ],
     "response_blocks": [
+        "model-response message-content",
         "message-content",
         "model-response",
         "div.response-content",
@@ -23,5 +26,6 @@ GEMINI_SELECTORS = {
         "button[aria-label*='New chat']",
         "button[aria-label*='Nova conversa']",
         "a[href='/app']",
+        "a[href='/app/new']",
     ],
 }

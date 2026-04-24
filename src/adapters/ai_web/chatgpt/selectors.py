@@ -2,16 +2,20 @@ CHATGPT_SELECTORS = {
     "prompt_input": [
         "#prompt-textarea",
         "textarea[placeholder*='Message']",
+        "textarea[placeholder*='Enviar']",
         "textarea",
-        "[contenteditable='true']",
+        "div[contenteditable='true']",
+        "[contenteditable='true'][data-lexical-editor='true']",
     ],
     "send_button": [
         "[data-testid='send-button']",
         "button[aria-label*='Send']",
         "button[aria-label*='Enviar']",
+        "button[data-testid*='send']",
     ],
     "response_blocks": [
         "div[data-message-author-role='assistant'] div.markdown",
+        "div[data-message-author-role='assistant'] .prose",
         "div[data-message-author-role='assistant']",
         "article[data-testid*='conversation-turn'] div.markdown",
     ],
@@ -24,5 +28,6 @@ CHATGPT_SELECTORS = {
         "a[href='/']",
         "button[aria-label*='New chat']",
         "button[aria-label*='Novo chat']",
+        "a[aria-label*='New chat']",
     ],
 }
