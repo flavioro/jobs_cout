@@ -11,6 +11,33 @@ from src.core.config import get_settings
 AI_LOG_PATH = Path("data/ai_responses_log.json")
 
 
+def _validate_ai_log_payload(payload: dict[str, Any]) -> dict[str, Any]:
+    provider = str(payload.get("provider") or "unknown").strip().lower() or "unknown"
+    prompt = str(payload.get("prompt") or "")
+    response = str(payload.get("response") or "")
+    chat_url = payload.get("chat_url")
+    if chat_url is not None:
+        chat_url = str(chat_url)
+    success = bool(payload.get("success", True))
+    metadata = payload.get("metadata")
+    if not isinstance(metadata, dict):
+        metadata = {}
+    error = payload.get("error")
+    if error is not None:
+        error = str(error)
+
+    return {
+        "timestamp": payload.get("timestamp") or datetime.now(timezone.utc).isoformat(),
+        "provider": provider,
+        "prompt": prompt,
+        "response": response,
+        "chat_url": chat_url,
+        "success": success,
+        "metadata": metadata,
+        "error": error,
+    }
+
+
 def save_ai_response(
     prompt: str,
     response: str,
@@ -25,16 +52,18 @@ def save_ai_response(
     target_path = log_path or AI_LOG_PATH
     target_path.parent.mkdir(parents=True, exist_ok=True)
 
-    data = {
-        "timestamp": datetime.now(timezone.utc).isoformat(),
-        "provider": provider,
-        "prompt": prompt,
-        "response": response,
-        "chat_url": chat_url,
-        "success": success,
-        "metadata": metadata or {},
-        "error": error,
-    }
+    data = _validate_ai_log_payload(
+        {
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "provider": provider,
+            "prompt": prompt,
+            "response": response,
+            "chat_url": chat_url,
+            "success": success,
+            "metadata": metadata or {},
+            "error": error,
+        }
+    )
 
     with open(target_path, "a", encoding="utf-8") as file:
         file.write(json.dumps(data, ensure_ascii=False) + "\n")

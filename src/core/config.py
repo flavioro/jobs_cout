@@ -23,15 +23,15 @@ class Settings(BaseSettings):
     chatgpt_app_url: str = "https://chatgpt.com"
     chatgpt_chat_mode: str = "new_chat"
     chatgpt_chat_url: str | None = None
-    chatgpt_prompt_timeout_ms: int = 15000
-    chatgpt_response_wait_s: float = 8.0
+    chatgpt_prompt_timeout_ms: int = 5000
+    chatgpt_response_wait_s: float = 3.0
 
     gemini_storage_state_path: str = "data/gemini_profile"
     gemini_app_url: str = "https://gemini.google.com/app?pli=1"
     gemini_chat_mode: str = "new_chat"
     gemini_chat_url: str | None = None
-    gemini_prompt_timeout_ms: int = 15000
-    gemini_response_wait_s: float = 8.0
+    gemini_prompt_timeout_ms: int = 5000
+    gemini_response_wait_s: float = 3.0
 
     parser_version: str = "linkedin_v1.0"
     interactive_login: bool = False
