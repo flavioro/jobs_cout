@@ -4,9 +4,10 @@ Job Scout é um pipeline para ingestão de vagas do LinkedIn, enriquecimento por
 
 ## Visão geral
 
-O projeto combina três frentes:
+O projeto combina quatro frentes:
 
 - scraping resiliente de vagas do LinkedIn via Playwright
+- ingestão individual e em lote por CSV
 - enriquecimento estruturado por LLM para fit, skills, inglês e setor
 - automação web opcional para provedores conversacionais com perfil persistente
 
@@ -16,11 +17,12 @@ O projeto combina três frentes:
 2. Instale dependências com `pip install -r requirements.txt`.
 3. Copie `.env.example` para `.env` e ajuste as variáveis.
 4. Rode a API com `uvicorn src.main:app --reload`.
-5. Rode os testes com `pytest` ou com o script PowerShell do projeto.
+5. Rode os testes com `pytest` ou com os scripts PowerShell do projeto.
 
 ## Features
 
 - ingestão de vagas por URL do LinkedIn
+- ingestão em lote por CSV com filtro configurável por status
 - normalização, deduplicação e blocklist por título
 - persistência em SQLite com SQLAlchemy assíncrono
 - enriquecimento por Groq
@@ -32,24 +34,34 @@ O projeto combina três frentes:
 Em alto nível, o projeto é dividido em:
 
 - `src/adapters/linkedin`: coleta e extração de vagas
-- `src/services`: orquestração de ingestão, persistência e enrichment
+- `src/services`: orquestração de ingestão, persistência, batch import e enrichment
 - `src/adapters/ai_web`: automação web de provedores de IA
 - `src/api`: endpoints FastAPI
 - `src/db`: modelos e sessão do banco
 
 Mais detalhes estão em `docs/architecture.md`.
 
+## Importação por CSV
+
+O projeto suporta ingestão em lote a partir de exports CSV, com processamento sequencial em uma única sessão de navegador para reduzir custo operacional e evitar abrir/fechar o Playwright a cada vaga.
+
+Por padrão, o filtro usa `status = new`, mas o comportamento é configurável por parâmetro e configuração.
+
+Mais detalhes estão em `docs/csv-import.md`.
+
 ## Documentação detalhada
 
 - `docs/architecture.md`
 - `docs/enrichment.md`
 - `docs/scraping.md`
+- `docs/csv-import.md`
 - `docs/roadmap.md`
 
 ## Testes
 
 - unitários e integração: `pytest`
 - smoke manual para providers: `python -m scripts.manual_chatgpt_check` e `python -m scripts.manual_gemini_check`
+- importação CSV: testes de leitura, batch ingest e rota dedicada
 
 ## Observação sobre browser AI
 

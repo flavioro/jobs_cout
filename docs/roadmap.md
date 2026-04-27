@@ -1,16 +1,26 @@
 # Roadmap
 
+## Entregue recentemente
+
+- camada `ai_web` isolada do scraping tradicional
+- suporte a ChatGPT e Gemini com contrato comum
+- smoke checks e testes unitários para browser AI
+- documentação base da arquitetura
+- importação em lote por CSV com processamento sequencial em sessão única
+
 ## Curto prazo
 
-- consolidar o contrato único de browser AI
-- ampliar cobertura de smoke tests por provider
+- reforçar deduplicação por banco antes do batch
+- melhorar relatório final por item no importador CSV
 - adicionar métricas de performance por etapa
+- ampliar cobertura de smoke tests por provider e importação
 
 ## Médio prazo
 
 - suporte a novos providers web
 - providers por API oficial quando viável
-- dashboards operacionais de ingestão e enrichment
+- dashboards operacionais de ingestão, enrichment e batch import
+- filtros adicionais para importação CSV por senioridade, work model e origem
 
 ## Longo prazo
 
