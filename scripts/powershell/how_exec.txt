@@ -5,3 +5,7 @@ powershell -ExecutionPolicy Bypass -File .\scripts\powershell\run_all.ps1
 powershell -ExecutionPolicy Bypass -File .\scripts\powershell\run_api_posts.ps1
 
 powershell -ExecutionPolicy Bypass -File .\scripts\powershell\run_pytest.ps1
+
+powershell -ExecutionPolicy Bypass -File .\scripts\powershell\run_api_posts_from_csv.ps1
+
+powershell -ExecutionPolicy Bypass -File .\scripts\powershell\show_db_tables.ps1

@@ -19,6 +19,9 @@ class Settings(BaseSettings):
     google_storage_state_path: str = "data/google_storage_state.json"
     google_login_url: str = "https://accounts.google.com/ServiceLogin"
 
+    csv_import_default_path: str = "data/imports/jobs_last_2_days.csv"
+    csv_import_status_filter: str = "new"
+
     chatgpt_storage_state_path: str = "data/gpt_profile"
     chatgpt_app_url: str = "https://chatgpt.com"
     chatgpt_chat_mode: str = "new_chat"

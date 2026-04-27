@@ -24,3 +24,13 @@ if (!(Test-Path $ResponsesDir)) {
 
 $LinkedinRelatedJobsPromotePendingDefaultLimit = 1
 $RunLinkedinRelatedJobsPromotePendingInRunAll = $true
+
+$JobsCsvImportPath = "D:\Python\projetos\gmail_linkedin\linkedin_gmail_jobs_hub\exports\jobs_last_2_days.csv"
+$JobsCsvStatusFilter = "new"
+$JobsCsvIncludeAllStatuses = $false
+$JobsCsvLimit = 100
+
+# ============================
+# NOVO: Python do ambiente
+# ============================
+$PythonExe = "D:\Python\anaconda3\envs\job_scout\python.exe"
