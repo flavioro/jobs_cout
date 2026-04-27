@@ -217,3 +217,40 @@ class LinkedinPromotePendingRelatedJobsResponse(BaseModel):
     failed: int
     skipped: int
     items: list[dict]
+
+class CsvBatchIngestRequest(BaseModel):
+    csv_path: str | None = Field(None, description="Caminho do CSV a ser importado. Se omitido, usa o path configurado.")
+    status_filter: str | None = Field(None, description="Filtra linhas por status. Ex: new. Ignorado quando include_all_statuses=true.")
+    include_all_statuses: bool = Field(False, description="Quando true, processa todas as linhas válidas independente do status.")
+    limit: int | None = Field(None, ge=1, le=5000, description="Limita a quantidade de linhas processadas após filtros.")
+    dry_run: bool = Field(False, description="Quando true, apenas valida e simula a seleção das vagas.")
+    continue_on_error: bool = Field(True, description="Continua processando as próximas linhas quando uma falhar.")
+
+
+class CsvBatchIngestItem(BaseModel):
+    row_number: int
+    source_status: str | None = None
+    linkedin_job_id: str | None = None
+    url: str
+    title: str | None = None
+    selected: bool = True
+    ok: bool = False
+    skipped: bool = False
+    job_id: str | None = None
+    result_status: str | None = None
+    error: str | None = None
+
+
+class CsvBatchIngestResponse(BaseModel):
+    status: str
+    csv_path: str
+    dry_run: bool
+    requested_status_filter: str | None = None
+    effective_status_filter: str | None = None
+    total_rows: int
+    selected_rows: int
+    processed: int
+    success_count: int
+    failed_count: int
+    skipped_count: int
+    items: list[CsvBatchIngestItem]

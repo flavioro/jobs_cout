@@ -18,13 +18,16 @@ from src.schemas.jobs import (
     RelatedJobListRead,
     RelatedJobRead,
     JobCRMUpdate, 
-    EnrichmentFilters
+    EnrichmentFilters,
+    CsvBatchIngestRequest,
+    CsvBatchIngestResponse
 )
 
 from src.services.persistence_service import update_job_crm, get_pending_jobs_for_enrichment, list_related_jobs
 from src.services.ingest_service import ingest_url
 from src.services.linkedin_related_job_promotion_service import promote_pending_linkedin_related_jobs
 from src.services.ai_enrichment_service import enrich_pending_jobs
+from src.services.batch_ingest_service import ingest_jobs_from_csv
 
 router = APIRouter(tags=["jobs"])
 
@@ -62,6 +65,24 @@ async def ingest_url_endpoint(
     session: AsyncSession = Depends(get_db_session),
 ) -> IngestUrlResponse:
     return await ingest_url(request=request, session=session)
+
+
+
+
+@router.post("/ingest-csv", response_model=CsvBatchIngestResponse, dependencies=[Depends(require_api_key)])
+async def ingest_csv_endpoint(
+    request: CsvBatchIngestRequest,
+    session: AsyncSession = Depends(get_db_session),
+) -> CsvBatchIngestResponse:
+    return await ingest_jobs_from_csv(
+        session=session,
+        csv_path=request.csv_path,
+        status_filter=request.status_filter,
+        include_all_statuses=request.include_all_statuses,
+        limit=request.limit,
+        dry_run=request.dry_run,
+        continue_on_error=request.continue_on_error,
+    )
 
 
 @router.post(

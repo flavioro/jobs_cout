@@ -1,50 +1,52 @@
 import structlog
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.adapters.base import BaseAdapter
 from src.adapters.factory import AdapterFactory
 from src.core.compare import compare_optional_hint
 from src.core.config import get_settings
 from src.schemas.jobs import ConfirmationPayload, IngestUrlRequest, IngestUrlResponse
-from src.services.persistence_service import upsert_job, save_blocked_job
+from src.services.persistence_service import save_blocked_job, upsert_job
 from src.utils.storage import save_raw_html
 from src.utils.text import find_blocking_keyword
 
 log = structlog.get_logger()
 
 
-async def ingest_linkedin_request(request: IngestUrlRequest, session: AsyncSession) -> IngestUrlResponse:
+async def ingest_linkedin_request_with_adapter(
+    request: IngestUrlRequest,
+    session: AsyncSession,
+    adapter: BaseAdapter,
+) -> IngestUrlResponse:
     logger = log.bind(url=request.url, source="linkedin")
     logger.info("ingest.started")
 
-    adapter = AdapterFactory.get_adapter(request.url)
     raw_page = await adapter.fetch(request.url)
     payload = adapter.extract(raw_page)
     record = adapter.normalize(payload, request)
 
-    # --- INÍCIO DO BLOQUEIO ---
     settings = get_settings()
     blocked_word = find_blocking_keyword(record.title, settings.parsed_title_blocklist)
-    
+
     if blocked_word:
         reason_text = f"Palavra bloqueada: '{blocked_word}'"
         logger.info("job.blocked", reason=reason_text, title=record.title)
-        
+
         await save_blocked_job(
             session=session,
             source=record.source.value,
             url=record.url,
             title=record.title,
             company=record.company,
-            block_reason=reason_text
+            block_reason=reason_text,
         )
-        
+
         return IngestUrlResponse(
             status="blocked",
             source=record.source.value,
             job_id=None,
-            block_reason=reason_text
+            block_reason=reason_text,
         )
-    # --- FIM DO BLOQUEIO ---
 
     raw_html_path = save_raw_html(
         html=raw_page.html,
@@ -55,7 +57,6 @@ async def ingest_linkedin_request(request: IngestUrlRequest, session: AsyncSessi
 
     job = await upsert_job(session, record)
 
-    # CORREÇÃO: Lidar com vagas rejeitadas pelo persistence_service retornando o schema correto
     if not job:
         logger.warning("ingest_linkedin_request.rejected", url=record.url, reason="missing_core_fields")
         return IngestUrlResponse(
@@ -69,9 +70,9 @@ async def ingest_linkedin_request(request: IngestUrlRequest, session: AsyncSessi
                 location_raw="missing",
                 is_easy_apply="missing",
                 seniority_hint="missing",
-                workplace_type="missing"
+                workplace_type="missing",
             ),
-            job=None
+            job=None,
         )
 
     confirmation = ConfirmationPayload(
@@ -113,6 +114,11 @@ async def ingest_linkedin_request(request: IngestUrlRequest, session: AsyncSessi
             "related_jobs_count": len(record.related_jobs),
         },
     )
+
+
+async def ingest_linkedin_request(request: IngestUrlRequest, session: AsyncSession) -> IngestUrlResponse:
+    adapter = AdapterFactory.get_adapter(request.url)
+    return await ingest_linkedin_request_with_adapter(request, session, adapter)
 
 
 async def ingest_url(request: IngestUrlRequest, session: AsyncSession) -> IngestUrlResponse:
