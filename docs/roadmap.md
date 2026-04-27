@@ -2,25 +2,27 @@
 
 ## Entregue recentemente
 
-- camada `ai_web` isolada do scraping tradicional
-- suporte a ChatGPT e Gemini com contrato comum
-- smoke checks e testes unitários para browser AI
-- documentação base da arquitetura
-- importação em lote por CSV com processamento sequencial em sessão única
+- camada `ai_web` isolada do scraping
+- suporte a ChatGPT e Gemini via browser automation
+- importação em lote por CSV com sessão reutilizável
+- enrichment por provider configurável
+- suporte a `chatgpt_web` e `gemini_web`
+- normalização defensiva do payload de enrichment web
+- testes unitários e smoke para a camada `ai_web`
 
 ## Curto prazo
 
-- reforçar deduplicação por banco antes do batch
-- melhorar relatório final por item no importador CSV
+- ampliar cobertura de smoke tests por provider
 - adicionar métricas de performance por etapa
-- ampliar cobertura de smoke tests por provider e importação
+- melhorar troubleshooting operacional dos providers web
+- registrar comparativos de qualidade entre `groq`, `chatgpt_web` e `gemini_web`
 
 ## Médio prazo
 
+- fallback automático entre providers
 - suporte a novos providers web
 - providers por API oficial quando viável
-- dashboards operacionais de ingestão, enrichment e batch import
-- filtros adicionais para importação CSV por senioridade, work model e origem
+- dashboards operacionais de ingestão e enrichment
 
 ## Longo prazo
 

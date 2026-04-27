@@ -3,15 +3,21 @@
 ## Camadas principais
 
 ### 1. Scraping
-`src/adapters/linkedin` concentra fetch, extract e normalize para vagas do LinkedIn.
+`src/adapters/linkedin` concentra `fetch`, `extract` e `normalize` para vagas do LinkedIn.
 
 ### 2. Application services
-`src/services` orquestra ingestão, enriquecimento, importação em lote e persistência.
+`src/services` orquestra ingestão, enriquecimento, persistência e rotinas de lote.
 
 ### 3. Browser AI
 `src/adapters/ai_web` concentra integrações web para ChatGPT e Gemini.
 
-Essa camada foi isolada do scraping porque lida com um domínio diferente: automação de conversas, perfis persistentes, retries, seletores e captura de resposta.
+Essa camada foi isolada do scraping porque lida com um domínio diferente:
+- automação de conversas
+- perfis persistentes
+- retries
+- seletores
+- extração incremental de resposta
+- logs operacionais
 
 ### 4. API
 `src/api` expõe os endpoints FastAPI.
@@ -19,60 +25,72 @@ Essa camada foi isolada do scraping porque lida com um domínio diferente: autom
 ### 5. Data layer
 `src/db` define modelos, base e sessão.
 
+## Fluxos principais
+
+### Ingestão individual
+1. receber URL
+2. resolver adapter
+3. buscar página
+4. extrair payload
+5. normalizar
+6. persistir
+
+### Ingestão por CSV em lote
+1. ler CSV
+2. filtrar por `status`
+3. normalizar linhas
+4. processar URLs uma por vez
+5. reutilizar a mesma sessão do navegador
+6. persistir e registrar resultado por item
+
+### Enrichment por API
+1. buscar vagas pendentes
+2. aplicar blocklist e filtros
+3. montar contexto
+4. chamar provider configurado
+5. validar saída
+6. persistir campos enriquecidos
+
+### Enrichment web
+Quando `enrichment_provider` é `chatgpt_web` ou `gemini_web`, o fluxo passa por:
+- `src/services/ai_enrichment_service.py`
+- `src/services/browser_ai_service.py`
+- `src/adapters/ai_web/...`
+
+O serviço monta um prompt estruturado, executa a automação web, extrai JSON, normaliza campos problemáticos e só então valida e persiste.
+
 ## Browser AI design
 
 Cada provider segue o mesmo contrato:
 
-- `AIChatOptions`: modo de execução e timeout
-- `AIResponse`: saída estruturada
+- `AIChatOptions`: modo de execução, timeout e retries
+- `AIResponse`: saída estruturada com `text`, `provider`, `chat_url`, `success`, `metadata` e `error`
 - `BaseAIWebFetcher`: navegação, retry, debug e extração incremental
 - `BaseAIWebAdapter`: persistência do log e interface padronizada
+- `AIAdapterFactory`: resolve `chatgpt` e `gemini`
 
 ## Chat mode
 
 - `new_chat`: abre o app base e tenta iniciar um chat limpo
 - `existing_chat`: abre uma URL específica de conversa
 
-`new_chat` é o modo recomendado para testes determinísticos.
-
-## Ingestão individual e em lote
-
-A arquitetura de ingestão agora possui dois fluxos compatíveis:
-
-### Ingestão individual
-Entrada por URL única via endpoint `POST /ingest-url`, usada por scripts e automações pontuais.
-
-### Ingestão em lote por CSV
-Entrada por endpoint dedicado e por script Python/PowerShell, com as seguintes etapas:
-
-1. leitura do CSV
-2. filtro por status configurável
-3. normalização do payload para `IngestUrlRequest`
-4. deduplicação básica por identificador externo ou URL
-5. processamento sequencial em uma única sessão Playwright
-6. persistência e relatório por item
-
-## Componentes do batch import
-
-- `src/services/jobs_csv_import_service.py`: leitura, validação e mapeamento do CSV
-- `src/services/batch_ingest_service.py`: execução em lote e agregação de resultados
-- `src/adapters/linkedin/fetcher.py`: sessão reutilizável do navegador para múltiplas URLs
-- `src/api/routes_jobs.py`: endpoints de ingestão individual e em lote
-- `scripts/import_jobs_csv.py`: execução local via CLI
-- `scripts/powershell/run_api_posts_from_csv.ps1`: runner operacional no Windows
+Para enrichment, `new_chat` é o modo recomendado por previsibilidade.
 
 ## Observabilidade
 
-Cada execução de browser AI salva:
+Cada execução pode salvar:
 
 - HTML final em `data/debug/<provider>_page.html`
 - screenshot em `data/debug/<provider>_page.png`
 - log em JSON lines em `data/ai_responses_log.json`
 
-A execução de batch import deve registrar, por item:
+## Decisões importantes
 
-- URL
-- identificador externo
-- status final
-- mensagem de erro, quando houver
-- timestamp do processamento
+### Por que enrichment web não substitui tudo?
+Providers web são úteis, mas têm custos operacionais maiores:
+- DOM pode mudar
+- resposta pode vir fora do formato
+- são mais lentos que API
+- dependem de sessão autenticada
+
+Por isso o projeto mantém `groq` como provider natural de API e usa providers web como alternativa configurável.
