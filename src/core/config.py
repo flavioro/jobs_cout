@@ -1,3 +1,4 @@
+
 from functools import lru_cache
 from typing import List
 
@@ -19,19 +20,22 @@ class Settings(BaseSettings):
     google_storage_state_path: str = "data/google_storage_state.json"
     google_login_url: str = "https://accounts.google.com/ServiceLogin"
 
+    csv_import_default_path: str = "data/imports/jobs_last_2_days.csv"
+    csv_import_status_filter: str = "new"
+
     chatgpt_storage_state_path: str = "data/gpt_profile"
     chatgpt_app_url: str = "https://chatgpt.com"
     chatgpt_chat_mode: str = "new_chat"
     chatgpt_chat_url: str | None = None
     chatgpt_prompt_timeout_ms: int = 5000
-    chatgpt_response_wait_s: float = 3.0
+    chatgpt_response_wait_s: float = 10.0
 
     gemini_storage_state_path: str = "data/gemini_profile"
     gemini_app_url: str = "https://gemini.google.com/app?pli=1"
     gemini_chat_mode: str = "new_chat"
     gemini_chat_url: str | None = None
     gemini_prompt_timeout_ms: int = 5000
-    gemini_response_wait_s: float = 3.0
+    gemini_response_wait_s: float = 15.0
 
     parser_version: str = "linkedin_v1.0"
     interactive_login: bool = False
@@ -52,6 +56,13 @@ class Settings(BaseSettings):
     groq_api_key: str = ""
     groq_model: str = "llama3-70b-8192"
     user_profile_context: str = ""
+
+    # "groq" | "chatgpt_web" | "gemini_web"
+    enrichment_provider: str = "chatgpt_web"
+    enrichment_web_chat_mode: str = "new_chat"
+    enrichment_web_response_timeout_s: float = 45.0
+    enrichment_web_max_retries: int = 1
+    enrichment_web_force_new_chat: bool = True
 
     @property
     def parsed_title_blocklist(self) -> List[str]:
