@@ -1,3 +1,4 @@
+
 from __future__ import annotations
 
 import asyncio
@@ -96,18 +97,31 @@ class BaseAIWebFetcher:
         timeout_s: float,
     ) -> tuple[str, str | None]:
         deadline = time.perf_counter() + timeout_s
-        latest_text = ""
         latest_selector: str | None = None
+        stable_text = ""
+        stable_hits = 0
 
         while time.perf_counter() < deadline:
             text, selector = await self._extract_response_from_index(before_count)
-            if text:
-                return text, selector
             if selector:
                 latest_selector = selector
-            await asyncio.sleep(0.25)
 
-        return latest_text, latest_selector
+            if text:
+                if text == stable_text:
+                    stable_hits += 1
+                else:
+                    stable_text = text
+                    stable_hits = 1
+
+                looks_jsonish = "{" in text and "}" in text
+                if stable_hits >= 2 and (looks_jsonish or len(text) > 24):
+                    return text, latest_selector
+
+            await asyncio.sleep(0.5)
+
+        if stable_text:
+            return stable_text, latest_selector
+        return "", latest_selector
 
     def clean_response_text(self, text: str) -> str:
         blocked_exact = {
@@ -313,15 +327,23 @@ class BaseAIWebFetcher:
         return "keyboard_enter"
 
     async def wait_until_response_complete(self, options: AIChatOptions) -> None:
-        stop_locator, _ = await self._first_visible_locator(self.selectors.get("stop_button", []), 3000)
-        if stop_locator is not None:
-            try:
-                await stop_locator.wait_for(
-                    state="hidden",
-                    timeout=int(options.response_timeout_s * 1000),
-                )
-                await asyncio.sleep(0.8)
-                return
-            except Exception:
-                pass
-        await asyncio.sleep(options.response_timeout_s)
+        total_timeout_ms = int(options.response_timeout_s * 1000)
+        stop_selectors = self.selectors.get("stop_button", [])
+
+        # Give the UI a short chance to render a stop button.
+        observed_stop = False
+        render_deadline = time.perf_counter() + min(options.response_timeout_s, 6.0)
+        while time.perf_counter() < render_deadline and not observed_stop:
+            locator, _ = await self._first_visible_locator(stop_selectors, 800)
+            if locator is not None:
+                observed_stop = True
+                try:
+                    await locator.wait_for(state="hidden", timeout=total_timeout_ms)
+                    await asyncio.sleep(1.2)
+                    return
+                except Exception:
+                    break
+            await asyncio.sleep(0.3)
+
+        # Fallback: no stop button found or hidden wait failed.
+        await asyncio.sleep(min(max(options.response_timeout_s * 0.6, 2.0), options.response_timeout_s))

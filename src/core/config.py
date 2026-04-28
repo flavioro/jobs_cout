@@ -1,3 +1,4 @@
+
 from functools import lru_cache
 from typing import List
 
@@ -27,14 +28,14 @@ class Settings(BaseSettings):
     chatgpt_chat_mode: str = "new_chat"
     chatgpt_chat_url: str | None = None
     chatgpt_prompt_timeout_ms: int = 5000
-    chatgpt_response_wait_s: float = 3.0
+    chatgpt_response_wait_s: float = 10.0
 
     gemini_storage_state_path: str = "data/gemini_profile"
     gemini_app_url: str = "https://gemini.google.com/app?pli=1"
     gemini_chat_mode: str = "new_chat"
     gemini_chat_url: str | None = None
     gemini_prompt_timeout_ms: int = 5000
-    gemini_response_wait_s: float = 3.0
+    gemini_response_wait_s: float = 15.0
 
     parser_version: str = "linkedin_v1.0"
     interactive_login: bool = False
@@ -55,6 +56,13 @@ class Settings(BaseSettings):
     groq_api_key: str = ""
     groq_model: str = "llama3-70b-8192"
     user_profile_context: str = ""
+
+    # "groq" | "chatgpt_web" | "gemini_web"
+    enrichment_provider: str = "chatgpt_web"
+    enrichment_web_chat_mode: str = "new_chat"
+    enrichment_web_response_timeout_s: float = 45.0
+    enrichment_web_max_retries: int = 1
+    enrichment_web_force_new_chat: bool = True
 
     @property
     def parsed_title_blocklist(self) -> List[str]:
