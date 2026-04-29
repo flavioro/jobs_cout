@@ -10,15 +10,18 @@ def test_linkedin_search_collect_ingest_endpoint(monkeypatch):
         search_items=None,
         max_jobs_per_url=None,
         continue_on_error=True,
+        dry_run=False,
         skip_closed=None,
         export_xlsx=None,
         export_xlsx_path=None,
     ):
+        assert dry_run is True
         assert skip_closed is True
         assert export_xlsx is True
         return {
             "status": "completed",
             "source": "linkedin_search",
+            "dry_run": True,
             "total_search_urls": 1,
             "collected_count": 2,
             "complete_count": 1,
@@ -64,6 +67,7 @@ def test_linkedin_search_collect_ingest_endpoint(monkeypatch):
             ],
             "max_jobs_per_url": 5,
             "continue_on_error": True,
+            "dry_run": True,
             "skip_closed": True,
             "export_xlsx": True,
         },
@@ -73,6 +77,7 @@ def test_linkedin_search_collect_ingest_endpoint(monkeypatch):
     payload = response.json()
     assert payload["status"] == "completed"
     assert payload["source"] == "linkedin_search"
+    assert payload["dry_run"] is True
     assert payload["processed"] == 2
     assert payload["complete_count"] == 1
     assert payload["cards_xlsx_path"].endswith("linkedin_search_cards.xlsx")

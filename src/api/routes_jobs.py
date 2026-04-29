@@ -219,6 +219,7 @@ async def linkedin_search_collect_ingest_endpoint(
         search_items=search_items,
         max_jobs_per_url=request.max_jobs_per_url,
         continue_on_error=request.continue_on_error,
+        dry_run=request.dry_run,
         skip_closed=request.skip_closed,
         export_xlsx=request.export_xlsx,
         export_xlsx_path=request.export_xlsx_path,

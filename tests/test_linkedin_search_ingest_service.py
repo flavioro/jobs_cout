@@ -18,7 +18,6 @@ async def test_collect_and_ingest_search_jobs_skips_closed_and_ingests_partial(m
             "extraction_status": "partial",
             "availability_status": "unknown",
             "detail_completed": False,
-            "detail_url_opened": True,
         },
         {
             "linkedin_job_id": "2",
@@ -58,8 +57,57 @@ async def test_collect_and_ingest_search_jobs_skips_closed_and_ingests_partial(m
     assert result["success_count"] == 1
     assert result["skipped_count"] == 1
     assert result["items"][0]["result_status"] == "success"
-    assert result["items"][0]["detail_url_opened"] is True
-    assert result["detail_url_opened_count"] == 1
     assert result["items"][1]["error"] == "closed_card_skipped"
     assert result["cards_xlsx_path"] == "cards.xlsx"
 
+
+@pytest.mark.asyncio
+async def test_collect_and_ingest_search_jobs_dry_run_does_not_open_ingest_browser(monkeypatch):
+    collected = [
+        {
+            "linkedin_job_id": "1",
+            "linkedin_job_url": "https://www.linkedin.com/jobs/view/1/",
+            "title": "Python Developer",
+            "company": "ACME",
+            "location_raw": "Brasil",
+            "extraction_status": "complete",
+            "availability_status": "unknown",
+            "detail_completed": True,
+        },
+        {
+            "linkedin_job_id": "2",
+            "linkedin_job_url": "https://www.linkedin.com/jobs/view/2/",
+            "title": "Chatbot Developer",
+            "company": "Simbium.com",
+            "location_raw": "Brasil",
+            "extraction_status": "closed",
+            "availability_status": "closed",
+            "detail_completed": True,
+        },
+    ]
+
+    async def fake_collect(*args, **kwargs):
+        return collected
+
+    class BrowserSessionShouldNotOpen:
+        def __init__(self, *args, **kwargs):
+            raise AssertionError("dry_run must not open LinkedInBrowserSession")
+
+    async def ingest_should_not_run(*args, **kwargs):
+        raise AssertionError("dry_run must not ingest jobs")
+
+    monkeypatch.setattr("src.services.linkedin_search_ingest_service.collect_jobs_from_search_urls", fake_collect)
+    monkeypatch.setattr("src.services.linkedin_search_ingest_service.LinkedInBrowserSession", BrowserSessionShouldNotOpen)
+    monkeypatch.setattr("src.services.linkedin_search_ingest_service.ingest_linkedin_request_with_adapter", ingest_should_not_run)
+    monkeypatch.setattr("src.services.linkedin_search_ingest_service.export_search_cards_to_xlsx", lambda *args, **kwargs: "cards.xlsx")
+
+    result = await collect_and_ingest_search_jobs(session=AsyncMock(), dry_run=True, skip_closed=True, export_xlsx=True)
+
+    assert result["status"] == "dry_run"
+    assert result["dry_run"] is True
+    assert result["processed"] == 0
+    assert result["success_count"] == 0
+    assert result["failed_count"] == 0
+    assert result["skipped_count"] == 2
+    assert result["items"][0]["result_status"] == "dry_run"
+    assert result["items"][1]["error"] == "closed_card_skipped"

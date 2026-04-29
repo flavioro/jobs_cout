@@ -266,6 +266,7 @@ class LinkedinSearchCollectIngestRequest(BaseModel):
     search_urls: list[LinkedinSearchSourceItem] | None = None
     max_jobs_per_url: int | None = Field(None, ge=1, le=200)
     continue_on_error: bool = True
+    dry_run: bool = Field(False, description="Quando true, simula a ingestão sem gravar na tabela Job.")
     skip_closed: bool | None = Field(None, description="Quando true, não ingere cards identificados como fechados/expirados.")
     export_xlsx: bool | None = Field(None, description="Quando true, exporta os cards capturados para Excel.")
     export_xlsx_path: str | None = Field(None, description="Caminho opcional do arquivo .xlsx de cards capturados.")
@@ -280,7 +281,6 @@ class LinkedinSearchCollectIngestItem(BaseModel):
     extraction_status: str | None = None
     availability_status: str | None = None
     detail_completed: bool | None = None
-    detail_url_opened: bool | None = None
     ok: bool
     skipped: bool = False
     job_id: str | None = None
@@ -291,14 +291,13 @@ class LinkedinSearchCollectIngestItem(BaseModel):
 class LinkedinSearchCollectIngestResponse(BaseModel):
     status: str
     source: str
+    dry_run: bool = False
     total_search_urls: int | None = None
     collected_count: int
     complete_count: int = 0
     partial_count: int = 0
     closed_count: int = 0
     invalid_count: int = 0
-    detail_completed_count: int = 0
-    detail_url_opened_count: int = 0
     processed: int
     success_count: int
     failed_count: int
