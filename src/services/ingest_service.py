@@ -13,13 +13,23 @@ from src.utils.text import find_blocking_keyword
 log = structlog.get_logger()
 
 
-async def ingest_linkedin_request_with_adapter(
+async def _ingest_linkedin_with_adapter(
     request: IngestUrlRequest,
     session: AsyncSession,
     adapter: BaseAdapter,
+    *,
+    adapter_source: str = "factory",
 ) -> IngestUrlResponse:
+    """Shared LinkedIn ingestion pipeline.
+
+    This keeps POST /ingest-url and LinkedIn search ingestion on the same
+    extraction, normalization, blocklist, raw HTML persistence and upsert flow.
+    The search flow can inject an adapter/fetcher that reuses a persistent
+    browser session, while the regular endpoint still resolves the adapter from
+    the URL through AdapterFactory.
+    """
     logger = log.bind(url=request.url, source="linkedin")
-    logger.info("ingest.started")
+    logger.info("ingest.started", adapter_source=adapter_source)
 
     raw_page = await adapter.fetch(request.url)
     payload = adapter.extract(raw_page)
@@ -27,7 +37,6 @@ async def ingest_linkedin_request_with_adapter(
 
     settings = get_settings()
     blocked_word = find_blocking_keyword(record.title, settings.parsed_title_blocklist)
-
     if blocked_word:
         reason_text = f"Palavra bloqueada: '{blocked_word}'"
         logger.info("job.blocked", reason=reason_text, title=record.title)
@@ -56,7 +65,6 @@ async def ingest_linkedin_request_with_adapter(
     record = record.model_copy(update={"raw_html_path": raw_html_path})
 
     job = await upsert_job(session, record)
-
     if not job:
         logger.warning("ingest_linkedin_request.rejected", url=record.url, reason="missing_core_fields")
         return IngestUrlResponse(
@@ -118,7 +126,30 @@ async def ingest_linkedin_request_with_adapter(
 
 async def ingest_linkedin_request(request: IngestUrlRequest, session: AsyncSession) -> IngestUrlResponse:
     adapter = AdapterFactory.get_adapter(request.url)
-    return await ingest_linkedin_request_with_adapter(request, session, adapter)
+    return await _ingest_linkedin_with_adapter(
+        request=request,
+        session=session,
+        adapter=adapter,
+        adapter_source="factory",
+    )
+
+
+async def ingest_linkedin_request_with_adapter(
+    request: IngestUrlRequest,
+    session: AsyncSession,
+    adapter: BaseAdapter,
+) -> IngestUrlResponse:
+    """Ingest a LinkedIn job using an already-created adapter/fetcher.
+
+    Used by LinkedIn search collection to reuse the persistent browser session
+    while keeping the same pipeline used by POST /ingest-url.
+    """
+    return await _ingest_linkedin_with_adapter(
+        request=request,
+        session=session,
+        adapter=adapter,
+        adapter_source="injected",
+    )
 
 
 async def ingest_url(request: IngestUrlRequest, session: AsyncSession) -> IngestUrlResponse:

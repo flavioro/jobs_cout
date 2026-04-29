@@ -1,4 +1,3 @@
-
 from functools import lru_cache
 from typing import List
 
@@ -16,6 +15,17 @@ class Settings(BaseSettings):
     database_url: str = "sqlite+aiosqlite:///./data/jobscout.db"
     raw_html_dir: str = "data/raw_html"
     storage_state_path: str = "data/storage_state.json"
+    linkedin_profile_path: str = "data/linkedin_profile"
+    linkedin_search_urls_path: str = "data/linkedin_search_urls.json"
+    linkedin_search_scroll_steps: int = 8
+    linkedin_search_scroll_delay_s: float = 1.5
+    linkedin_search_initial_wait_s: float = 2.0
+    linkedin_search_detail_wait_s: float = 1.5
+    linkedin_search_stable_scroll_rounds: int = 3
+    linkedin_search_card_limit_per_url: int = 25
+    linkedin_search_export_xlsx_enabled: bool = True
+    linkedin_search_export_xlsx_path: str = "data/exports/linkedin_search_cards.xlsx"
+    linkedin_search_skip_closed: bool = True
 
     google_storage_state_path: str = "data/google_storage_state.json"
     google_login_url: str = "https://accounts.google.com/ServiceLogin"

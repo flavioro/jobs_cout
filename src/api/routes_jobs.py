@@ -20,7 +20,9 @@ from src.schemas.jobs import (
     JobCRMUpdate, 
     EnrichmentFilters,
     CsvBatchIngestRequest,
-    CsvBatchIngestResponse
+    CsvBatchIngestResponse,
+    LinkedinSearchCollectIngestRequest,
+    LinkedinSearchCollectIngestResponse,
 )
 
 from src.services.persistence_service import update_job_crm, get_pending_jobs_for_enrichment, list_related_jobs
@@ -28,6 +30,7 @@ from src.services.ingest_service import ingest_url
 from src.services.linkedin_related_job_promotion_service import promote_pending_linkedin_related_jobs
 from src.services.ai_enrichment_service import enrich_pending_jobs
 from src.services.batch_ingest_service import ingest_jobs_from_csv
+from src.services.linkedin_search_ingest_service import collect_and_ingest_search_jobs
 
 router = APIRouter(tags=["jobs"])
 
@@ -199,3 +202,25 @@ async def enrich_jobs_with_ai(
     
     result = await enrich_pending_jobs(session=db_session, limit=limit, filters=filters)
     return result
+
+@router.post(
+    "/linkedin/search-jobs/collect-ingest",
+    response_model=LinkedinSearchCollectIngestResponse,
+    summary="Coleta vagas de URLs de busca do LinkedIn e faz ingestão direta",
+    dependencies=[Depends(require_api_key)],
+)
+async def linkedin_search_collect_ingest_endpoint(
+    request: LinkedinSearchCollectIngestRequest,
+    session: AsyncSession = Depends(get_db_session),
+) -> LinkedinSearchCollectIngestResponse:
+    search_items = [item.model_dump() for item in request.search_urls] if request.search_urls else None
+    result = await collect_and_ingest_search_jobs(
+        session=session,
+        search_items=search_items,
+        max_jobs_per_url=request.max_jobs_per_url,
+        continue_on_error=request.continue_on_error,
+        skip_closed=request.skip_closed,
+        export_xlsx=request.export_xlsx,
+        export_xlsx_path=request.export_xlsx_path,
+    )
+    return LinkedinSearchCollectIngestResponse(**result)

@@ -254,3 +254,54 @@ class CsvBatchIngestResponse(BaseModel):
     failed_count: int
     skipped_count: int
     items: list[CsvBatchIngestItem]
+
+
+class LinkedinSearchSourceItem(BaseModel):
+    name: str | None = None
+    url: str
+    enabled: bool = True
+
+
+class LinkedinSearchCollectIngestRequest(BaseModel):
+    search_urls: list[LinkedinSearchSourceItem] | None = None
+    max_jobs_per_url: int | None = Field(None, ge=1, le=200)
+    continue_on_error: bool = True
+    skip_closed: bool | None = Field(None, description="Quando true, não ingere cards identificados como fechados/expirados.")
+    export_xlsx: bool | None = Field(None, description="Quando true, exporta os cards capturados para Excel.")
+    export_xlsx_path: str | None = Field(None, description="Caminho opcional do arquivo .xlsx de cards capturados.")
+
+
+class LinkedinSearchCollectIngestItem(BaseModel):
+    row_number: int
+    linkedin_job_id: str | None = None
+    url: str
+    title: str | None = None
+    company: str | None = None
+    extraction_status: str | None = None
+    availability_status: str | None = None
+    detail_completed: bool | None = None
+    detail_url_opened: bool | None = None
+    ok: bool
+    skipped: bool = False
+    job_id: str | None = None
+    result_status: str | None = None
+    error: str | None = None
+
+
+class LinkedinSearchCollectIngestResponse(BaseModel):
+    status: str
+    source: str
+    total_search_urls: int | None = None
+    collected_count: int
+    complete_count: int = 0
+    partial_count: int = 0
+    closed_count: int = 0
+    invalid_count: int = 0
+    detail_completed_count: int = 0
+    detail_url_opened_count: int = 0
+    processed: int
+    success_count: int
+    failed_count: int
+    skipped_count: int = 0
+    cards_xlsx_path: str | None = None
+    items: list[LinkedinSearchCollectIngestItem]

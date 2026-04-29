@@ -3,21 +3,27 @@ from pathlib import Path
 
 from playwright.async_api import async_playwright
 
-STORAGE_STATE_PATH = "data/storage_state.json"
+from src.core.config import get_settings
 
 
 async def main() -> None:
-    Path("data").mkdir(exist_ok=True)
+    settings = get_settings()
+    user_data_dir = Path(settings.linkedin_profile_path)
+    user_data_dir.mkdir(parents=True, exist_ok=True)
 
     async with async_playwright() as p:
-        browser = await p.chromium.launch(headless=False)
-        context = await browser.new_context(locale="pt-BR", timezone_id="America/Sao_Paulo")
-        page = await context.new_page()
-        await page.goto("https://www.linkedin.com/login")
-        input("Faça login manualmente e pressione Enter para salvar a sessão...")
-        await context.storage_state(path=STORAGE_STATE_PATH)
-        print(f"Sessão salva em {STORAGE_STATE_PATH}")
-        await browser.close()
+        context = await p.chromium.launch_persistent_context(
+            user_data_dir=str(user_data_dir),
+            headless=False,
+            locale="pt-BR",
+            timezone_id="America/Sao_Paulo",
+            viewport={"width": 1440, "height": 960},
+        )
+        page = context.pages[0] if context.pages else await context.new_page()
+        await page.goto("https://www.linkedin.com/login", wait_until="domcontentloaded")
+        input("Faça login manualmente no LinkedIn e pressione Enter para manter a sessão persistente... ")
+        print(f"Perfil persistente salvo em {user_data_dir}")
+        await context.close()
 
 
 if __name__ == "__main__":
