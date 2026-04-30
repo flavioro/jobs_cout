@@ -11,6 +11,7 @@ from src.services.linkedin_search_collection_service import (
     summarize_cards,
 )
 from src.services.linkedin_search_ingest_service import collect_and_ingest_search_jobs
+from src.services.job_candidate_service import collect_linkedin_search_jobs_to_candidates
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -24,6 +25,11 @@ def build_parser() -> argparse.ArgumentParser:
         "--ingest",
         action="store_true",
         help="Depois de coletar os cards, ingere vagas abertas usando o mesmo fluxo do POST /ingest-url.",
+    )
+    parser.add_argument(
+        "--save-candidates",
+        action="store_true",
+        help="Depois de coletar os cards, salva/atualiza uma fila na tabela job_candidates.",
     )
     parser.add_argument(
         "--dry-run",
@@ -93,14 +99,38 @@ async def run_collect_and_ingest(args: argparse.Namespace) -> dict:
         await engine.dispose()
 
 
+async def run_collect_and_save_candidates(args: argparse.Namespace) -> dict:
+    settings = get_settings()
+    await init_db()
+    engine = create_async_engine(settings.database_url, future=True)
+    SessionLocal = async_sessionmaker(engine, expire_on_commit=False)
+    try:
+        async with SessionLocal() as session:
+            return await collect_linkedin_search_jobs_to_candidates(
+                session=session,
+                max_jobs_per_url=args.max_jobs_per_url,
+                export_xlsx=not args.no_export_xlsx,
+                export_xlsx_path=args.export_xlsx_path,
+            )
+    finally:
+        await engine.dispose()
+
+
 async def main() -> None:
     parser = build_parser()
     args = parser.parse_args()
 
     if args.dry_run and not args.ingest:
         parser.error("--dry-run só faz sentido junto com --ingest.")
+    if args.ingest and args.save_candidates:
+        parser.error("Use --ingest ou --save-candidates, não ambos no mesmo comando.")
 
-    result = await run_collect_and_ingest(args) if args.ingest else await run_collect_only(args)
+    if args.ingest:
+        result = await run_collect_and_ingest(args)
+    elif args.save_candidates:
+        result = await run_collect_and_save_candidates(args)
+    else:
+        result = await run_collect_only(args)
     print(json.dumps(result, ensure_ascii=False, indent=2, default=str))
 
 

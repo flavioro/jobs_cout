@@ -23,6 +23,12 @@ from src.schemas.jobs import (
     CsvBatchIngestResponse,
     LinkedinSearchCollectIngestRequest,
     LinkedinSearchCollectIngestResponse,
+    LinkedinSearchCollectCandidatesRequest,
+    LinkedinSearchCollectCandidatesResponse,
+    JobCandidateListResponse,
+    JobCandidateRead,
+    ProcessJobCandidatesRequest,
+    ProcessJobCandidatesResponse,
 )
 
 from src.services.persistence_service import update_job_crm, get_pending_jobs_for_enrichment, list_related_jobs
@@ -31,6 +37,11 @@ from src.services.linkedin_related_job_promotion_service import promote_pending_
 from src.services.ai_enrichment_service import enrich_pending_jobs
 from src.services.batch_ingest_service import ingest_jobs_from_csv
 from src.services.linkedin_search_ingest_service import collect_and_ingest_search_jobs
+from src.services.job_candidate_service import (
+    collect_linkedin_search_jobs_to_candidates,
+    list_job_candidates,
+    process_pending_job_candidates,
+)
 
 router = APIRouter(tags=["jobs"])
 
@@ -225,3 +236,68 @@ async def linkedin_search_collect_ingest_endpoint(
         export_xlsx_path=request.export_xlsx_path,
     )
     return LinkedinSearchCollectIngestResponse(**result)
+
+
+@router.post(
+    "/linkedin/search-jobs/collect-candidates",
+    response_model=LinkedinSearchCollectCandidatesResponse,
+    summary="Coleta vagas de URLs de busca do LinkedIn e salva em JobCandidate",
+    dependencies=[Depends(require_api_key)],
+)
+async def linkedin_search_collect_candidates_endpoint(
+    request: LinkedinSearchCollectCandidatesRequest,
+    session: AsyncSession = Depends(get_db_session),
+) -> LinkedinSearchCollectCandidatesResponse:
+    search_items = [item.model_dump() for item in request.search_urls] if request.search_urls else None
+    result = await collect_linkedin_search_jobs_to_candidates(
+        session=session,
+        search_items=search_items,
+        max_jobs_per_url=request.max_jobs_per_url,
+        export_xlsx=request.export_xlsx,
+        export_xlsx_path=request.export_xlsx_path,
+    )
+    return LinkedinSearchCollectCandidatesResponse(**result)
+
+
+@router.get(
+    "/job-candidates",
+    response_model=JobCandidateListResponse,
+    dependencies=[Depends(require_api_key)],
+)
+async def list_job_candidates_endpoint(
+    source: str | None = Query(default="linkedin"),
+    processing_status: str | None = Query(default=None),
+    limit: int = Query(default=50, ge=1, le=500),
+    offset: int = Query(default=0, ge=0),
+    session: AsyncSession = Depends(get_db_session),
+) -> JobCandidateListResponse:
+    total, items = await list_job_candidates(
+        session,
+        source=source,
+        processing_status=processing_status,
+        limit=limit,
+        offset=offset,
+    )
+    return JobCandidateListResponse(total=total, items=[JobCandidateRead.model_validate(item) for item in items])
+
+
+@router.post(
+    "/job-candidates/process",
+    response_model=ProcessJobCandidatesResponse,
+    summary="Processa candidatos pendentes e cria/atualiza registros na tabela Job",
+    dependencies=[Depends(require_api_key)],
+)
+async def process_job_candidates_endpoint(
+    request: ProcessJobCandidatesRequest,
+    session: AsyncSession = Depends(get_db_session),
+) -> ProcessJobCandidatesResponse:
+    result = await process_pending_job_candidates(
+        session=session,
+        source=request.source,
+        limit=request.limit,
+        dry_run=request.dry_run,
+        retry_failed=request.retry_failed,
+        skip_closed=request.skip_closed,
+        continue_on_error=request.continue_on_error,
+    )
+    return ProcessJobCandidatesResponse(**result)

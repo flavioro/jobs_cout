@@ -304,3 +304,84 @@ class LinkedinSearchCollectIngestResponse(BaseModel):
     skipped_count: int = 0
     cards_xlsx_path: str | None = None
     items: list[LinkedinSearchCollectIngestItem]
+
+
+
+class JobCandidateRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: str
+    source: str
+    source_job_id: str | None = None
+    source_url: str
+    canonical_source_url: str
+    source_search_url: str | None = None
+    title: str | None = None
+    company: str | None = None
+    location_raw: str | None = None
+    workplace_type: str | None = None
+    employment_type_raw: str | None = None
+    seniority_hint: str | None = None
+    is_easy_apply: bool | None = None
+    availability_status: str | None = None
+    availability_reason: str | None = None
+    extraction_status: str | None = None
+    missing_fields: list[str] | None = None
+    detail_completed: bool
+    detail_url_opened: bool
+    detail_completion_source: str | None = None
+    processing_status: str
+    processing_attempts: int
+    processing_error: str | None = None
+    job_id: str | None = None
+    processed_at: datetime | None = None
+    collected_at: datetime
+    created_at: datetime
+    updated_at: datetime
+
+
+class JobCandidateListResponse(BaseModel):
+    total: int
+    items: list[JobCandidateRead]
+
+
+class LinkedinSearchCollectCandidatesRequest(BaseModel):
+    search_urls: list[LinkedinSearchSourceItem] | None = None
+    max_jobs_per_url: int | None = Field(None, ge=1, le=200)
+    export_xlsx: bool | None = Field(False, description="Quando true, também exporta Excel de auditoria.")
+    export_xlsx_path: str | None = Field(None, description="Caminho opcional do arquivo .xlsx de auditoria.")
+
+
+class LinkedinSearchCollectCandidatesResponse(BaseModel):
+    status: str
+    source: str
+    collected_count: int
+    complete_count: int = 0
+    partial_count: int = 0
+    closed_count: int = 0
+    invalid_count: int = 0
+    created_count: int
+    updated_count: int
+    skipped_count: int = 0
+    items: list[dict]
+
+
+class ProcessJobCandidatesRequest(BaseModel):
+    source: str = "linkedin"
+    limit: int = Field(20, ge=1, le=500)
+    dry_run: bool = Field(False, description="Quando true, simula o processamento sem gravar Job nem alterar candidatos.")
+    retry_failed: bool = Field(False, description="Inclui candidatos com processing_status=failed.")
+    skip_closed: bool = Field(True, description="Ignora candidatos fechados/expirados.")
+    continue_on_error: bool = True
+
+
+class ProcessJobCandidatesResponse(BaseModel):
+    status: str
+    source: str
+    dry_run: bool = False
+    selected_count: int
+    processed: int
+    success_count: int
+    failed_count: int
+    skipped_count: int
+    items: list[dict]

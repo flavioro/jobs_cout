@@ -1,54 +1,96 @@
+from __future__ import annotations
+
 import sqlite3
 from pathlib import Path
-import asyncio
-from sqlalchemy import text  # <-- ADICIONE ESTA LINHA AQUI
-from src.db.session import engine
 
-def run_migration():
-    # Caminho exato onde seu banco está
-    db_path = Path("data/jobscout.db")
-    
-    if not db_path.exists():
-        print(f"Erro: Banco de dados não encontrado em {db_path}")
+DB_PATH = Path("data/jobscout.db")
+
+
+def _column_exists(cursor: sqlite3.Cursor, table_name: str, column_name: str) -> bool:
+    cursor.execute(f"PRAGMA table_info({table_name})")
+    return any(row[1] == column_name for row in cursor.fetchall())
+
+
+def _add_column_if_missing(cursor: sqlite3.Cursor, table_name: str, column_name: str, definition: str) -> None:
+    if _column_exists(cursor, table_name, column_name):
+        print(f"Coluna ja existe: {table_name}.{column_name}")
         return
+    cursor.execute(f"ALTER TABLE {table_name} ADD COLUMN {column_name} {definition};")
+    print(f"Coluna adicionada: {table_name}.{column_name}")
 
-    print(f"Conectando ao banco SQLite: {db_path}")
-    conn = sqlite3.connect(db_path)
-    cursor = conn.cursor()
 
-    # Comandos SQL para adicionar apenas as novas colunas
-    novas_colunas = [
-        "ALTER TABLE jobs ADD COLUMN salary_expectation VARCHAR(255);"
-    ]
+def _create_job_candidates_table(cursor: sqlite3.Cursor) -> None:
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS job_candidates (
+            id VARCHAR(36) NOT NULL PRIMARY KEY,
+            source VARCHAR(50) NOT NULL DEFAULT 'linkedin',
+            source_job_id VARCHAR(255),
+            source_url VARCHAR(2048) NOT NULL,
+            canonical_source_url VARCHAR(2048) NOT NULL,
+            source_search_url VARCHAR(2048),
+            title VARCHAR(512),
+            company VARCHAR(255),
+            location_raw VARCHAR(255),
+            workplace_type VARCHAR(50),
+            employment_type_raw VARCHAR(100),
+            seniority_hint VARCHAR(100),
+            is_easy_apply BOOLEAN,
+            availability_status VARCHAR(50),
+            availability_reason VARCHAR(100),
+            extraction_status VARCHAR(50),
+            missing_fields JSON,
+            detail_completed BOOLEAN NOT NULL DEFAULT 0,
+            detail_url_opened BOOLEAN NOT NULL DEFAULT 0,
+            detail_completion_source VARCHAR(100),
+            detail_error TEXT,
+            raw_card_text TEXT,
+            raw_detail_text TEXT,
+            raw_payload_json JSON,
+            processing_status VARCHAR(50) NOT NULL DEFAULT 'pending',
+            processing_attempts INTEGER NOT NULL DEFAULT 0,
+            processing_error TEXT,
+            job_id VARCHAR(36),
+            processed_at DATETIME,
+            collected_at DATETIME NOT NULL,
+            created_at DATETIME,
+            updated_at DATETIME,
+            FOREIGN KEY(job_id) REFERENCES jobs (id) ON DELETE SET NULL,
+            CONSTRAINT uq_job_candidates_source_job_id UNIQUE (source, source_job_id),
+            CONSTRAINT uq_job_candidates_source_url UNIQUE (source, canonical_source_url)
+        );
+    """)
+    print("Tabela garantida: job_candidates")
+    for query in [
+        "CREATE INDEX IF NOT EXISTS ix_job_candidates_source ON job_candidates (source);",
+        "CREATE INDEX IF NOT EXISTS ix_job_candidates_source_job_id ON job_candidates (source_job_id);",
+        "CREATE INDEX IF NOT EXISTS ix_job_candidates_canonical_source_url ON job_candidates (canonical_source_url);",
+        "CREATE INDEX IF NOT EXISTS ix_job_candidates_availability_status ON job_candidates (availability_status);",
+        "CREATE INDEX IF NOT EXISTS ix_job_candidates_extraction_status ON job_candidates (extraction_status);",
+        "CREATE INDEX IF NOT EXISTS ix_job_candidates_processing_status ON job_candidates (processing_status);",
+        "CREATE INDEX IF NOT EXISTS ix_job_candidates_job_id ON job_candidates (job_id);",
+        "CREATE INDEX IF NOT EXISTS ix_job_candidates_source_status ON job_candidates (source, processing_status);",
+        "CREATE INDEX IF NOT EXISTS ix_job_candidates_source_collected ON job_candidates (source, collected_at);",
+    ]:
+        cursor.execute(query)
+    print("Indices garantidos para job_candidates")
 
-    for query in novas_colunas:
-        try:
-            cursor.execute(query)
-            print(f"Sucesso: Coluna adicionada -> {query}")
-        except sqlite3.OperationalError as e:
-            if "duplicate column name" in str(e).lower():
-                print(f"Aviso ignorado: A coluna já existe -> {query}")
-            else:
-                print(f"Erro inesperado na query {query}: {e}")
 
-    conn.commit()
-    conn.close()
-    print("\nMigração das colunas concluída com sucesso! Seus dados antigos estão seguros e a base está pronta para a IA.")
+def run_migration() -> None:
+    if not DB_PATH.exists():
+        print(f"Erro: Banco de dados nao encontrado em {DB_PATH}")
+        return
+    print(f"Conectando ao banco SQLite: {DB_PATH}")
+    conn = sqlite3.connect(DB_PATH)
+    try:
+        cursor = conn.cursor()
+        _add_column_if_missing(cursor, "jobs", "salary_expectation", "VARCHAR(255)")
+        _add_column_if_missing(cursor, "jobs", "sector", "VARCHAR(100)")
+        _create_job_candidates_table(cursor)
+        conn.commit()
+        print("\nMigracao concluida com sucesso.")
+    finally:
+        conn.close()
 
-# No seu ficheiro de migração
-async def add_sector_column():
-    async with engine.begin() as conn:
-        try:
-            # Comando específico do SQLite para adicionar coluna
-            await conn.execute(text("ALTER TABLE jobs ADD COLUMN sector VARCHAR(100);"))
-            print("✅ Coluna 'sector' adicionada com sucesso.")
-        except Exception as e:
-            if "duplicate column name" in str(e).lower():
-                print("ℹ️ Coluna 'sector' já existe.")
-            else:
-                print(f"❌ Erro ao adicionar coluna: {e}")
 
 if __name__ == "__main__":
-    # O asyncio.run() cria o loop de eventos necessário para executar a função async
-    asyncio.run(add_sector_column())
-
+    run_migration()
