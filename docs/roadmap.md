@@ -1,42 +1,73 @@
 # Roadmap
 
-## Entregue recentemente
+## Concluído
 
-- camada `ai_web` isolada do scraping
-- suporte a ChatGPT e Gemini via browser automation
-- importação em lote por CSV com sessão reutilizável
-- enrichment por provider configurável
-- suporte a `chatgpt_web` e `gemini_web`
-- normalização defensiva do payload de enrichment web
-- coleta de vagas por URLs de busca do LinkedIn
-- scroll incremental em listas virtualizadas do LinkedIn
-- exportação Excel/HTML/PNG para auditoria da busca
-- detecção de vagas fechadas/expiradas na busca
-- complemento de cards parciais usando o extractor do fluxo `ingest-url`
-- modo `--ingest` no script de busca LinkedIn para gravar vagas na tabela `Job`
-- modo `--dry-run` para simular a ingestão sem gravar no banco
-- testes unitários e smoke para a camada `ai_web`
-- testes focados para coleta e ingestão da busca LinkedIn
+### LinkedIn individual ingest
 
-## Curto prazo
+- ingestão de vaga por URL;
+- normalização e deduplicação;
+- blocklist;
+- captura de `related_jobs`;
+- testes unitários e regressão com páginas reais.
 
-- validar deduplicação em execuções repetidas de `--ingest`
-- melhorar relatório final da ingestão por busca
-- adicionar métricas de performance por etapa
-- ampliar troubleshooting operacional dos providers web
-- registrar comparativos de qualidade entre `groq`, `chatgpt_web` e `gemini_web`
+### Browser AI providers
+
+- contrato único para provedores web;
+- ChatGPT web;
+- Gemini web;
+- logs estruturados;
+- retries e screenshots/HTML de debug.
+
+### CSV batch import
+
+- leitura de CSV;
+- ingestão em lote;
+- filtros de status;
+- scripts PowerShell auxiliares.
+
+### LinkedIn Search collect/ingest
+
+- login LinkedIn persistente;
+- coleta de cards de busca;
+- scroll incremental;
+- dedup por `linkedin_job_id`/URL;
+- Excel de auditoria;
+- detecção de vagas fechadas;
+- preenchimento de cards parciais usando o extrator do fluxo `ingest-url`;
+- ingestão direta opcional com `--ingest`.
+
+### JobCandidate staging queue
+
+- tabela `job_candidates`;
+- coleta com `--save-candidates`;
+- processamento posterior com `scripts.process_job_candidates`;
+- status `pending`, `processed`, `failed`, `skipped`;
+- migração em `migrate_db.py`;
+- endpoints para coletar/listar/processar candidatos;
+- testes unitários;
+- validação real no SQLite.
+
+## Próximo curto prazo
+
+- documentar consultas úteis para analisar `job_candidates` por status;
+- adicionar relatório/resumo operacional da fila;
+- melhorar saída do script `process_job_candidates` com contadores por status;
+- adicionar opção de reprocessamento seletivo por `source_search_url`;
+- melhorar filtros em `GET /job-candidates`.
 
 ## Médio prazo
 
-- fallback automático entre providers de enrichment
-- suporte a novos providers web
-- providers por API oficial quando viável
-- dashboards operacionais de ingestão e enrichment
-- rotinas agendadas para buscas salvas do LinkedIn
+- priorização/score antes de virar `Job`;
+- enriquecimento IA depois da staging queue;
+- tela ou endpoint operacional para revisar candidatos;
+- métricas de performance por etapa;
+- workers assíncronos para processamento recorrente;
+- suporte a múltiplas fontes de vagas além do LinkedIn.
 
 ## Longo prazo
 
-- workers assíncronos para pipelines completos
-- múltiplas fontes de vagas além do LinkedIn
-- automações orientadas por perfil e prioridade de candidatura
-- fila de candidatura assistida com priorização por fit
+- dashboard operacional de ingestão/enrichment;
+- agendamento de buscas recorrentes;
+- fila robusta com retries/backoff;
+- automações orientadas por perfil e prioridade de candidatura;
+- múltiplos providers de busca e enriquecimento.

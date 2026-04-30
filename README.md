@@ -1,131 +1,154 @@
 # Job Scout
 
-Job Scout é um pipeline para ingestão de vagas do LinkedIn, enriquecimento por IA e automação opcional de provedores web como ChatGPT e Gemini.
+Job Scout é um pipeline para ingestão, organização e enriquecimento de vagas, com foco inicial no LinkedIn. O projeto combina scraping com Playwright, persistência em SQLite/SQLAlchemy, enriquecimento por IA e automações operacionais para transformar buscas de vagas em registros estruturados.
 
 ## Visão geral
 
-O projeto combina cinco frentes principais:
+O projeto cobre três fluxos principais:
 
-- scraping resiliente de vagas do LinkedIn via Playwright
-- coleta de vagas a partir de páginas de busca do LinkedIn
-- ingestão individual, por CSV e por busca do LinkedIn
-- enriquecimento estruturado por IA para fit, skills, inglês, senioridade e setor
-- automação web opcional para provedores conversacionais com perfil persistente
+1. **Ingestão por URL individual**  
+   Recebe uma URL de vaga do LinkedIn, captura a página, extrai os dados, normaliza e grava/atualiza a tabela `jobs`.
+
+2. **Coleta por busca do LinkedIn**  
+   Abre URLs de busca do LinkedIn com sessão persistente, faz scroll incremental, captura cards de vagas, completa cards parciais abrindo a vaga individual quando necessário e gera auditoria em Excel/HTML/PNG.
+
+3. **Fila intermediária de candidatos (`job_candidates`)**  
+   Salva as vagas coletadas da busca em uma tabela intermediária. Depois, um segundo processo transforma candidatos pendentes em registros finais na tabela `jobs`, marcando cada candidato como `processed`, `skipped` ou `failed`.
+
+Esse desenho permite separar **coleta** de **processamento**, evitando perda de dados quando a ingestão falha e permitindo auditoria/reprocessamento.
 
 ## Quick start
 
-1. Crie e ative seu ambiente virtual.
-2. Instale as dependências com `pip install -r requirements.txt`.
+1. Crie e ative o ambiente virtual/conda.
+2. Instale as dependências:
+
+```bash
+pip install -r requirements.txt
+```
+
 3. Copie `.env.example` para `.env` e ajuste as variáveis.
-4. Rode a API com `uvicorn src.main:app --reload`.
-5. Rode os testes com `pytest` ou com os scripts PowerShell do projeto.
+4. Prepare o banco local:
 
-## Features
+```bash
+python migrate_db.py
+```
 
-- ingestão de vagas por URL do LinkedIn
-- importação em lote por CSV com filtro por status
-- coleta de vagas por URLs de busca do LinkedIn
-- modo de auditoria com exportação Excel, HTML e screenshot
-- modo de ingestão real das vagas coletadas na tabela `Job`
-- normalização, deduplicação e blocklist por título
-- persistência em SQLite com SQLAlchemy assíncrono
-- enriquecimento por provider configurável:
-  - `groq`
-  - `chatgpt_web`
-  - `gemini_web`
-- automação web para ChatGPT e Gemini com chat novo ou chat existente por URL
-- logging de respostas de browser AI em JSON lines
-
-## Comandos principais
-
-### API
+5. Rode a API:
 
 ```bash
 uvicorn src.main:app --reload
 ```
 
-### Ingestão de uma vaga por URL
+ou use os scripts PowerShell do projeto.
 
-Use o endpoint `POST /ingest-url`.
-
-### Coleta de vagas por busca do LinkedIn
-
-Somente coleta e auditoria:
+6. Rode os testes:
 
 ```bash
-python -m scripts.collect_linkedin_search_jobs
+pytest
 ```
 
-Coleta e simulação de ingestão, sem gravar no banco:
+ou:
 
-```bash
-python -m scripts.collect_linkedin_search_jobs --ingest --dry-run
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\powershell\run_pytest.ps1
 ```
 
-Coleta e gravação real na tabela `Job`:
+## Features
 
-```bash
-python -m scripts.collect_linkedin_search_jobs --ingest
-```
+- ingestão de vaga individual por URL do LinkedIn;
+- normalização, deduplicação e blocklist por título;
+- captura de vagas relacionadas (`related_jobs`);
+- persistência em SQLite com SQLAlchemy assíncrono;
+- coleta de vagas por página de busca do LinkedIn;
+- scroll incremental e deduplicação por `linkedin_job_id`/URL canônica;
+- detecção de vagas fechadas/expiradas;
+- preenchimento de cards parciais reaproveitando o extrator do fluxo `ingest-url`;
+- exportação opcional de auditoria em Excel;
+- tabela intermediária `job_candidates` para staging/fila de processamento;
+- processamento controlado de candidatos para a tabela final `jobs`;
+- enriquecimento por Groq e provedores web;
+- automação web para ChatGPT e Gemini com perfil persistente;
+- logging de respostas de browser AI em JSON lines.
 
-Login persistente no LinkedIn:
+## Fluxo recomendado para LinkedIn Search
+
+### 1. Login persistente no LinkedIn
 
 ```bash
 python -m scripts.login_linkedin
 ```
 
-## Arquitetura
+Isso cria/atualiza o profile persistente configurado em `linkedin_profile_path`.
 
-Em alto nível, o projeto é dividido em:
+### 2. Criar ou revisar URLs de busca
 
-- `src/adapters/linkedin`: coleta e extração de vagas
-- `src/services`: orquestração de ingestão, persistência e enrichment
-- `src/adapters/ai_web`: automação web de provedores de IA
-- `src/api`: endpoints FastAPI
-- `src/db`: modelos e sessão do banco
+Arquivo padrão:
 
-Mais detalhes estão em `docs/architecture.md`.
+```text
+data/linkedin_search_urls.json
+```
+
+### 3. Coletar para staging table
+
+Coleta as vagas da busca, salva/atualiza `job_candidates` e gera Excel por padrão:
+
+```bash
+python -m scripts.collect_linkedin_search_jobs --save-candidates
+```
+
+Sem Excel:
+
+```bash
+python -m scripts.collect_linkedin_search_jobs --save-candidates --no-export-xlsx
+```
+
+### 4. Processar staging para `jobs`
+
+Primeiro simule:
+
+```bash
+python -m scripts.process_job_candidates --dry-run --limit 20
+```
+
+Depois processe de verdade:
+
+```bash
+python -m scripts.process_job_candidates --limit 20
+```
+
+Para reprocessar falhas:
+
+```bash
+python -m scripts.process_job_candidates --retry-failed --limit 20
+```
+
+## Tabelas principais
+
+- `jobs`: vagas finais processadas.
+- `job_candidates`: staging/fila de vagas coletadas por busca.
+- `related_jobs`: vagas relacionadas capturadas durante a ingestão de uma vaga.
+- `blocked_jobs`: vagas bloqueadas por regra de título/palavra-chave.
+
+## Endpoints principais
+
+- `POST /ingest-url`: ingere uma vaga individual.
+- `POST /linkedin/search-jobs/collect-ingest`: coleta busca e ingere direto em `jobs`.
+- `POST /linkedin/search-jobs/collect-candidates`: coleta busca e salva em `job_candidates`.
+- `GET /job-candidates`: lista candidatos coletados.
+- `POST /job-candidates/process`: processa candidatos pendentes para `jobs`.
 
 ## Documentação detalhada
 
 - `docs/architecture.md`
 - `docs/enrichment.md`
 - `docs/scraping.md`
-- `docs/csv-import.md`
-- `docs/web-enrichment.md`
 - `docs/linkedin-search.md`
 - `docs/roadmap.md`
 
-## Testes
+## Observação sobre Excel
 
-Unitários e integração:
+O Excel deixou de ser a fonte principal do fluxo. A fonte principal agora é a tabela `job_candidates`. Ainda assim, a exportação Excel continua útil para auditoria rápida do scraper, revisão visual dos campos coletados e diagnóstico quando o LinkedIn muda o HTML.
 
-```bash
-pytest
-```
+## Observação sobre browser AI
 
-Testes focados da busca LinkedIn:
-
-```bash
-pytest -q tests/test_linkedin_search_extractor.py tests/test_linkedin_search_collection_service.py tests/test_linkedin_search_fetcher_scroll.py tests/test_linkedin_search_ingest_service.py tests/test_routes_linkedin_search_collect.py
-```
-
-Smoke manual para providers:
-
-```bash
-python -m scripts.manual_chatgpt_check
-python -m scripts.manual_gemini_check
-```
-
-## Observações sobre browser AI
-
-O modo padrão é `new_chat`, mais previsível para automação.
-
-No enrichment web, o projeto aplica:
-
-- prompt estruturado pedindo JSON
-- extração do primeiro objeto JSON da resposta
-- normalização defensiva de campos como `sector`, `english_level` e `seniority_suggestion`
-- validação Pydantic antes de persistir
-
-O modo `existing_chat` é suportado via URL configurável, mas traz risco maior de contaminação de contexto.
+O modo padrão é `new_chat`, mais previsível para automação. O modo `existing_chat` é suportado via URL configurável, mas traz risco maior de contaminação de contexto.

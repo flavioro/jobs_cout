@@ -1,198 +1,368 @@
 # LinkedIn Search
 
-Este documento descreve a coleta de vagas a partir das páginas de busca do LinkedIn.
+Este documento descreve o fluxo de coleta de vagas a partir de páginas de busca do LinkedIn e o fluxo novo de staging com a tabela `job_candidates`.
 
 ## Objetivo
 
-Permitir que o projeto descubra várias vagas a partir de uma URL de busca do LinkedIn e, opcionalmente, grave as vagas abertas na tabela `Job`.
+O fluxo LinkedIn Search permite sair de uma URL de busca, capturar vários cards de vagas, completar dados ausentes, salvar os resultados em uma tabela intermediária e depois transformar esses candidatos em registros finais na tabela `jobs`.
 
-A feature tem dois modos principais:
+O fluxo recomendado atual é:
 
-1. **auditoria/coleta**: gera Excel, HTML e screenshot sem gravar no banco
-2. **coleta + ingestão**: coleta as vagas e chama o pipeline de ingestão por URL para persistir na tabela `Job`
+```text
+LinkedIn Search URL
+→ coleta de cards com scroll incremental
+→ deduplicação por linkedin_job_id/URL
+→ preenchimento de cards parciais via página individual
+→ gravação/atualização em job_candidates
+→ processamento posterior para jobs
+→ marcação do candidato como processed/skipped/failed
+```
+
+## Por que existe `job_candidates`
+
+Antes, a busca podia gerar Excel e/ou ingerir diretamente em `jobs`. Agora existe uma etapa intermediária para controlar melhor o pipeline.
+
+Vantagens:
+
+- separa coleta de processamento;
+- evita perder vagas quando uma etapa posterior falha;
+- permite auditar tudo que foi encontrado;
+- permite reprocessar falhas;
+- evita gastar processamento/IA com vagas ruins ou fechadas;
+- mantém histórico de vagas fechadas/expiradas encontradas nas buscas;
+- permite priorizar candidatos antes de virarem `Job`.
+
+## Tabela `job_candidates`
+
+A tabela `job_candidates` funciona como staging table/fila de processamento.
+
+Campos conceituais principais:
+
+```text
+id
+source
+source_job_id
+source_url
+source_search_url
+
+title
+company
+location_raw
+workplace_type
+employment_type
+seniority_hint
+is_easy_apply
+
+availability_status
+availability_reason
+extraction_status
+missing_fields
+
+raw_card_text
+raw_detail_text
+raw_payload_json
+
+processing_status
+processing_attempts
+processing_error
+
+job_id
+processed_at
+collected_at
+created_at
+updated_at
+```
+
+## Identidade e deduplicação
+
+A deduplicação deve priorizar:
+
+```text
+1. source + source_job_id
+2. source_url/canonical_url
+3. fallback fraco: title + company + location
+```
+
+Para LinkedIn, o melhor identificador é o `linkedin_job_id`.
+
+Exemplo:
+
+```text
+source = linkedin
+source_job_id = 4408517292
+source_url = https://www.linkedin.com/jobs/view/4408517292/
+```
+
+## Status de disponibilidade
+
+`availability_status` representa a situação da vaga no LinkedIn:
+
+```text
+open
+closed
+unknown
+```
+
+Exemplos de vaga fechada/expirada:
+
+```text
+Expirado
+Vaga expirada
+Não aceita mais candidaturas
+Candidaturas encerradas
+No longer accepting applications
+Job expired
+```
+
+Vagas fechadas devem ser salvas em `job_candidates`, mas normalmente não devem virar `Job`.
+
+## Status de extração
+
+`extraction_status` representa a qualidade do card extraído:
+
+```text
+complete
+partial
+closed
+invalid
+```
+
+Cards parciais podem ser completados abrindo a URL individual da vaga e reaproveitando o extrator já usado pelo fluxo `POST /ingest-url`.
+
+## Status de processamento
+
+`processing_status` representa a etapa da fila:
+
+```text
+pending
+processing
+processed
+failed
+skipped
+```
+
+Fluxos possíveis:
+
+```text
+pending → processing → processed
+pending → processing → failed
+pending → skipped
+```
+
+Regras sugeridas:
+
+```text
+vaga aberta e válida → pending
+vaga fechada/expirada → skipped
+sem URL válida → skipped
+erro de ingestão → failed
+vaga criada/atualizada em jobs → processed
+```
+
+## Preparar banco
+
+Antes de usar o fluxo novo no banco local, execute:
+
+```bash
+python migrate_db.py
+```
+
+Esse script garante as colunas antigas necessárias e cria a tabela `job_candidates` quando ainda não existir.
 
 ## Login persistente
 
-Antes de coletar buscas, crie ou atualize o profile persistente do LinkedIn:
+Antes de coletar vagas, faça login no LinkedIn:
 
 ```bash
 python -m scripts.login_linkedin
 ```
 
-O profile padrão é configurado por:
+O profile persistente evita login manual a cada execução.
 
-```env
-LINKEDIN_PROFILE_PATH=data/linkedin_profile
+Configuração relacionada:
+
+```python
+linkedin_profile_path = "data/linkedin_profile"
 ```
-
-Esse diretório não deve ser versionado.
 
 ## Arquivo de URLs de busca
 
-As URLs de busca ficam em:
+Arquivo padrão:
 
-```env
-LINKEDIN_SEARCH_URLS_PATH=data/linkedin_search_urls.json
+```text
+data/linkedin_search_urls.json
 ```
 
-Exemplo conceitual:
+Formato esperado:
 
 ```json
 [
-  "https://www.linkedin.com/jobs/search/?keywords=Desenvolvedor%20Python&location=S%C3%A3o%20Paulo%20e%20Regi%C3%A3o"
+  "https://www.linkedin.com/jobs/search/?keywords=Python&location=Brasil"
 ]
 ```
 
-O arquivo real em `data/` não deve ser versionado quando contiver buscas pessoais.
+## Coletar somente para auditoria
 
-## Modo auditoria
+Gera Excel/HTML/PNG, mas não salva candidatos e não ingere em `jobs`:
 
 ```bash
 python -m scripts.collect_linkedin_search_jobs
 ```
 
-Esse modo:
+## Coletar e salvar em `job_candidates`
 
-- abre as URLs de busca
-- faz scroll incremental
-- captura cards
-- completa cards parciais
-- detecta vagas expiradas
-- gera Excel
-- salva HTML e screenshot de debug
-- não grava no banco
-
-É o modo recomendado para validar se o LinkedIn mudou DOM ou se a busca está retornando resultados coerentes.
-
-## Modo dry-run de ingestão
+Esse é o fluxo recomendado:
 
 ```bash
-python -m scripts.collect_linkedin_search_jobs --ingest --dry-run
+python -m scripts.collect_linkedin_search_jobs --save-candidates
 ```
 
-Esse modo executa a coleta e simula a ingestão, mas não grava no banco.
+Esse comando faz:
 
-Use antes da primeira ingestão real.
+```text
+abre URLs de busca
+faz scroll incremental
+captura cards
+completa parciais
+salva/atualiza job_candidates
+gera Excel de auditoria por padrão
+```
 
-## Modo ingestão real
+Sem Excel:
+
+```bash
+python -m scripts.collect_linkedin_search_jobs --save-candidates --no-export-xlsx
+```
+
+Com limite por URL:
+
+```bash
+python -m scripts.collect_linkedin_search_jobs --save-candidates --max-jobs-per-url 25
+```
+
+## Processar candidatos para `jobs`
+
+Simulação:
+
+```bash
+python -m scripts.process_job_candidates --dry-run --limit 20
+```
+
+Processamento real:
+
+```bash
+python -m scripts.process_job_candidates --limit 20
+```
+
+Reprocessar falhas:
+
+```bash
+python -m scripts.process_job_candidates --retry-failed --limit 20
+```
+
+Parar no primeiro erro:
+
+```bash
+python -m scripts.process_job_candidates --limit 20 --stop-on-error
+```
+
+## Fluxo antigo: ingestão direta
+
+Ainda existe o modo de coleta + ingestão direta:
 
 ```bash
 python -m scripts.collect_linkedin_search_jobs --ingest
 ```
 
-Esse modo:
+E simulação:
 
-1. coleta as vagas da busca
-2. ignora vagas fechadas por padrão
-3. chama o mesmo pipeline de `POST /ingest-url`
-4. salva ou atualiza registros na tabela `Job`
-5. exibe um resumo final
-
-## Flags úteis
-
-### `--ingest`
-
-Ativa a gravação real na tabela `Job`.
-
-### `--dry-run`
-
-Com `--ingest`, simula a gravação sem persistir.
-
-### `--max-jobs-per-url 10`
-
-Limita quantas vagas serão processadas por URL de busca.
-
-### `--stop-on-error`
-
-Interrompe no primeiro erro de ingestão.
-
-### `--include-closed`
-
-Inclui vagas fechadas/expiradas no processamento. Por padrão, elas são ignoradas.
-
-### `--no-export-xlsx`
-
-Desabilita a exportação do Excel de auditoria.
-
-### `--export-xlsx-path caminho.xlsx`
-
-Define um caminho alternativo para o Excel.
-
-## Configurações principais
-
-```env
-LINKEDIN_PROFILE_PATH=data/linkedin_profile
-LINKEDIN_SEARCH_URLS_PATH=data/linkedin_search_urls.json
-LINKEDIN_SEARCH_SCROLL_STEPS=8
-LINKEDIN_SEARCH_SCROLL_DELAY_S=1.5
-LINKEDIN_SEARCH_INITIAL_WAIT_S=2.0
-LINKEDIN_SEARCH_DETAIL_WAIT_S=1.5
-LINKEDIN_SEARCH_STABLE_SCROLL_ROUNDS=3
-LINKEDIN_SEARCH_CARD_LIMIT_PER_URL=25
-LINKEDIN_SEARCH_EXPORT_XLSX_ENABLED=true
-LINKEDIN_SEARCH_EXPORT_XLSX_PATH=data/exports/linkedin_search_cards.xlsx
-LINKEDIN_SEARCH_SKIP_CLOSED=true
+```bash
+python -m scripts.collect_linkedin_search_jobs --ingest --dry-run
 ```
 
-## Resultado esperado
+Mas para operação recorrente, prefira o fluxo com `--save-candidates` + `process_job_candidates`, porque ele mantém histórico, status e reprocessamento.
 
-Uma execução bem-sucedida pode produzir algo como:
+## Endpoints
 
-```text
-collected_count: 25
-complete_count: 24
-closed_count: 1
-processed: 24
-success_count: 24
-failed_count: 0
-skipped_count: 1
-```
-
-## Deduplicação
-
-A deduplicação acontece em dois níveis:
-
-1. na coleta, por `linkedin_job_id` ou URL canônica
-2. na ingestão, pelo pipeline existente de persistência/upsert da tabela `Job`
-
-Após implementar ou alterar a feature, rode o modo `--ingest` duas vezes com a mesma busca para validar que não há duplicação indevida.
-
-## Artefatos gerados
-
-Por padrão:
-
-- Excel: `data/exports/linkedin_search_cards.xlsx`
-- HTML: `data/debug/linkedin_search_<timestamp>.html`
-- Screenshot: `data/debug/linkedin_search_<timestamp>.png`
-
-Esses arquivos são operacionais e não devem ir para o Git.
-
-## Endpoint da API
-
-Além do script, a API expõe endpoint para coleta/ingestão:
+### Coletar e ingerir direto
 
 ```text
 POST /linkedin/search-jobs/collect-ingest
 ```
 
-Use o script para validação local e o endpoint quando precisar integrar a automação com outro fluxo.
-
-## Limitações conhecidas
-
-- O LinkedIn virtualiza a lista de resultados; o total visual da busca pode ser maior que o total capturado em uma execução.
-- Mudanças no DOM do LinkedIn podem exigir ajuste de seletores.
-- Sessão expirada pode exigir novo `python -m scripts.login_linkedin`.
-- O modo browser depende de Playwright e de uma sessão autenticada estável.
-
-## Checklist operacional
-
-Antes de usar em rotina:
+### Coletar para candidatos
 
 ```text
-[x] Login LinkedIn feito
-[x] URL de busca cadastrada
-[x] Coleta simples gera Excel
-[x] Dry-run de ingestão passa
-[x] Ingestão real grava na tabela Job
-[x] Segunda execução não duplica vagas
+POST /linkedin/search-jobs/collect-candidates
 ```
+
+### Listar candidatos
+
+```text
+GET /job-candidates
+```
+
+### Processar candidatos
+
+```text
+POST /job-candidates/process
+```
+
+## Configurações principais
+
+```python
+linkedin_profile_path: str = "data/linkedin_profile"
+linkedin_search_urls_path: str = "data/linkedin_search_urls.json"
+linkedin_search_scroll_steps: int = 8
+linkedin_search_scroll_delay_s: float = 1.5
+linkedin_search_initial_wait_s: float = 2.0
+linkedin_search_detail_wait_s: float = 1.5
+linkedin_search_stable_scroll_rounds: int = 3
+linkedin_search_card_limit_per_url: int = 25
+linkedin_search_export_xlsx_enabled: bool = True
+linkedin_search_export_xlsx_path: str = "data/exports/linkedin_search_cards.xlsx"
+linkedin_search_skip_closed: bool = True
+```
+
+## Auditoria
+
+Mesmo com `job_candidates`, o Excel continua útil para depuração.
+
+Arquivo padrão:
+
+```text
+data/exports/linkedin_search_cards.xlsx
+```
+
+Arquivos de debug também podem ser gerados em `data/debug/`.
+
+Atenção: `data/`, banco local, profiles e exports reais não devem ser commitados.
+
+## Validação funcional recomendada
+
+Depois de aplicar alterações na feature:
+
+```bash
+python migrate_db.py
+pytest -q tests/test_job_candidate_service.py tests/test_routes_linkedin_search_collect.py
+python -m scripts.collect_linkedin_search_jobs --save-candidates
+python -m scripts.process_job_candidates --dry-run --limit 20
+python -m scripts.process_job_candidates --limit 20
+```
+
+Depois, confira o banco. Um resultado esperado é:
+
+```text
+job_candidates: mantém o histórico coletado
+jobs: aumenta ou atualiza conforme candidatos processados
+related_jobs: pode aumentar se o pipeline de ingestão capturar vagas relacionadas
+```
+
+## Pontos de atenção
+
+- não usar `RelatedJob` para vagas de busca independentes;
+- salvar vagas fechadas em `job_candidates`, mas marcar como `skipped` no processamento;
+- não reprocessar `processed` por padrão;
+- usar `--retry-failed` apenas para falhas corrigíveis;
+- manter Excel como auditoria opcional, não como fonte de verdade;
+- evitar `git add .` para não versionar banco, profiles, HTML/PNG e exports reais.

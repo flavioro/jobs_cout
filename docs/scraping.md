@@ -1,97 +1,106 @@
 # Scraping
 
-O scraping do projeto é centrado em LinkedIn e segue o contrato de adapter tradicional:
+O scraping do projeto é centrado em LinkedIn e segue dois fluxos complementares:
 
-- `fetch(url)`
-- `extract(raw_page)`
-- `normalize(payload, request)`
+1. scraping de uma vaga individual;
+2. scraping de páginas de busca com múltiplos cards.
 
-## Componentes de vaga individual
+## Scraping de vaga individual
 
-- `fetcher.py`: navegação com Playwright
-- `extractor.py`: leitura de DOM e fallback de seletores
-- `selectors.py`: estratégia resiliente de busca
-- `adapter.py`: integração entre fetch, extract e normalize
-
-## Componentes de busca LinkedIn
-
-- `search_selectors.py`: seletores e textos usados na página de busca
-- `search_extractor.py`: normalização dos cards da busca
-- `search_fetcher.py`: abertura da busca, scroll incremental, extração de cards e abertura de URLs individuais quando necessário
-
-## Fluxo da busca LinkedIn
+Contrato tradicional do adapter:
 
 ```text
-URL de busca LinkedIn
-→ abre com profile persistente
-→ espera renderização inicial
-→ coleta cards visíveis
-→ rola a lista lateral
-→ coleta novamente
-→ deduplica por job_id/url
-→ completa cards parciais pela URL individual
-→ exporta Excel/HTML/PNG
+fetch(url)
+extract(raw_page)
+normalize(payload, request)
 ```
 
-## Scroll incremental
+Componentes:
 
-O LinkedIn virtualiza a lista de vagas. Por isso o projeto não espera a página inteira carregar.
+- `fetcher.py`: navegação com Playwright;
+- `extractor.py`: leitura de DOM e fallback de seletores;
+- `selectors.py`: estratégia resiliente para página individual;
+- `adapter.py`: integração entre fetch, extract e normalize.
 
-A estratégia é:
+Esse fluxo alimenta diretamente a tabela `jobs` e pode capturar `related_jobs`.
 
-1. extrair os cards atualmente visíveis
-2. rolar o container lateral de resultados
-3. aguardar curto intervalo
-4. extrair de novo
-5. mesclar os cards por `linkedin_job_id` ou URL
-6. parar quando atingir o limite ou quando não aparecerem cards novos por algumas rodadas
+## Scraping de busca LinkedIn
 
-## Cards completos, parciais e fechados
+O scraping de busca abre URLs de resultado do LinkedIn e captura cards.
 
-A coleta classifica cards em:
+Componentes:
 
-- `complete`: possui dados mínimos úteis
-- `partial`: possui URL, mas faltam campos como título, empresa ou localização
-- `closed`: vaga expirada ou sem aceitar candidaturas
-- `invalid`: sem dados mínimos para uso
+- `search_fetcher.py`: abre a busca, faz scroll incremental, coleta cards visíveis e abre detalhes quando necessário;
+- `search_extractor.py`: transforma DOM/payload do browser em cards estruturados;
+- `search_selectors.py`: concentra seletores e fallbacks da página de busca;
+- `linkedin_search_collection_service.py`: orquestra coleta, deduplicação e exportação;
+- `job_candidate_service.py`: salva cards coletados em `job_candidates`.
 
-Cards parciais são preservados, porque uma URL parcial ainda pode ser completada abrindo a vaga individual.
+## Fluxo recomendado atual
 
-## Complemento de cards parciais
-
-Quando um card tem URL mas faltam campos, o fetcher abre a URL individual da vaga e reutiliza o extractor do fluxo de `ingest-url`.
-
-Isso evita manter dois parsers completos diferentes para a página de vaga.
-
-## Vagas fechadas/expiradas
-
-O projeto detecta termos como:
-
-- `Expirado`
-- `Vaga expirada`
-- `Não aceita mais candidaturas`
-- `Candidaturas encerradas`
-- `No longer accepting applications`
-- `Job expired`
-
-Por padrão, vagas fechadas aparecem no Excel para auditoria, mas são ignoradas na ingestão.
-
-## Artefatos de debug
-
-A coleta salva artefatos para inspeção manual:
-
-- HTML da busca em `data/debug/`
-- screenshot da busca em `data/debug/`
-- Excel de auditoria em `data/exports/linkedin_search_cards.xlsx`
-
-Esses arquivos não devem ser versionados.
+```text
+LinkedIn Search URL
+→ scroll incremental
+→ captura cards
+→ dedup por linkedin_job_id/URL
+→ completa parciais com página individual
+→ grava/atualiza job_candidates
+→ processa candidatos para jobs em etapa separada
+```
 
 ## Boas práticas adotadas
 
-- URL canônica para deduplicação
-- limpeza de ruído em título e localização
-- detecção de vagas fechadas
-- preservação de links parciais
-- preferência por cards mais ricos quando o mesmo job aparece mais de uma vez
-- reutilização do extractor de `ingest-url` para páginas individuais
-- separação entre modo auditoria e modo ingestão
+- URL canônica para deduplicação;
+- deduplicação por `linkedin_job_id` quando disponível;
+- limpeza de ruído em título e localização;
+- detecção de vagas fechadas/expiradas;
+- captura de vagas relacionadas no fluxo individual;
+- exportação opcional de Excel para auditoria;
+- staging table para não depender de Excel como fonte de verdade.
+
+## Comandos úteis
+
+Coletar busca apenas para auditoria:
+
+```bash
+python -m scripts.collect_linkedin_search_jobs
+```
+
+Coletar busca e salvar na staging table:
+
+```bash
+python -m scripts.collect_linkedin_search_jobs --save-candidates
+```
+
+Coletar sem Excel:
+
+```bash
+python -m scripts.collect_linkedin_search_jobs --save-candidates --no-export-xlsx
+```
+
+Processar staging para `jobs`:
+
+```bash
+python -m scripts.process_job_candidates --dry-run --limit 20
+python -m scripts.process_job_candidates --limit 20
+```
+
+## Vagas fechadas
+
+Vagas fechadas/expiradas devem ser registradas em `job_candidates`, mas normalmente marcadas como `skipped` no processamento.
+
+Isso preserva auditoria sem poluir a tabela `jobs`.
+
+## Arquivos locais gerados
+
+O scraping pode gerar:
+
+```text
+data/debug/*.html
+data/debug/*.png
+data/exports/*.xlsx
+data/linkedin_profile/
+data/jobscout.db
+```
+
+Esses arquivos não devem ser commitados.
