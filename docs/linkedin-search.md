@@ -338,6 +338,49 @@ Arquivos de debug também podem ser gerados em `data/debug/`.
 
 Atenção: `data/`, banco local, profiles e exports reais não devem ser commitados.
 
+
+
+## Agendamento da coleta e processamento
+
+O fluxo recomendado pode ser automatizado em uma rotina diária que executa coleta e processamento em sequência.
+
+Execução manual das etapas:
+
+```bash
+python -m scripts.collect_linkedin_search_jobs --save-candidates
+python -m scripts.process_job_candidates --limit 100
+```
+
+Execução via wrapper para Windows Task Scheduler:
+
+```powershell
+scripts\run_linkedin_candidates_pipeline_daily.bat
+```
+
+Teste seguro:
+
+```powershell
+scripts\run_linkedin_candidates_pipeline_daily.bat -DryRun
+```
+
+O wrapper executa:
+
+```text
+1. coleta das vagas do LinkedIn Search;
+2. salvamento/atualização em job_candidates;
+3. processamento de até 100 candidatos pendentes;
+4. criação/atualização de registros em jobs;
+5. gravação de logs em logs\powershell.
+```
+
+Comando sugerido para o Windows Task Scheduler:
+
+```cmd
+schtasks /create /tn "Job Scout - LinkedIn Candidates Pipeline Diario" /tr "D:\Python\projetos\job_scout\jobscout\scripts\run_linkedin_candidates_pipeline_daily.bat" /sc weekly /d MON,TUE,WED,THU,FRI /st 08:45
+```
+
+Mais detalhes em `docs/linkedin-candidates-scheduler.md`.
+
 ## Validação funcional recomendada
 
 Depois de aplicar alterações na feature:
@@ -366,3 +409,23 @@ related_jobs: pode aumentar se o pipeline de ingestão capturar vagas relacionad
 - usar `--retry-failed` apenas para falhas corrigíveis;
 - manter Excel como auditoria opcional, não como fonte de verdade;
 - evitar `git add .` para não versionar banco, profiles, HTML/PNG e exports reais.
+
+
+## Agendamento operacional do LinkedIn Candidates
+
+O pipeline diário de LinkedIn Search deve ser executado pelo wrapper:
+
+```cmd
+scripts\run_linkedin_candidates_pipeline_daily.bat
+```
+
+Internamente, ele executa:
+
+```bash
+python -m scripts.collect_linkedin_search_jobs --save-candidates
+python -m scripts.process_job_candidates --limit 100
+```
+
+A rotina usa `scripts/powershell/config.ps1` para resolver o Python absoluto do ambiente `job_scout`, evitando depender de `conda activate` dentro do Agendador de Tarefas.
+
+Documentação completa: `docs/linkedin-candidates-scheduler.md`.

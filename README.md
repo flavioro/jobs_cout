@@ -183,3 +183,55 @@ python -m scripts.import_jobs_csv --csv-path "D:\Python\projetos\gmail_linkedin\
 ```
 
 Documentação completa: [`docs/csv-import-scheduler.md`](docs/csv-import-scheduler.md).
+
+## Pipeline LinkedIn Candidates diário via Windows Task Scheduler
+
+Além da importação CSV, o `job_scout` também pode automatizar o fluxo de coleta e processamento de candidatos vindos do LinkedIn Search.
+
+Fluxo operacional:
+
+```text
+LinkedIn Search
+→ job_candidates
+→ process_job_candidates
+→ jobs
+```
+
+Execução manual das etapas Python:
+
+```bash
+python -m scripts.collect_linkedin_search_jobs --save-candidates
+python -m scripts.process_job_candidates --limit 100
+```
+
+Execução via wrapper diário:
+
+```powershell
+scripts\run_linkedin_candidates_pipeline_daily.bat
+```
+
+Teste seguro:
+
+```powershell
+scripts\run_linkedin_candidates_pipeline_daily.bat -DryRun
+```
+
+Execução sem gerar Excel de auditoria:
+
+```powershell
+scripts\run_linkedin_candidates_pipeline_daily.bat -NoExportXlsx
+```
+
+Agendamento sugerido:
+
+```cmd
+schtasks /create /tn "Job Scout - LinkedIn Candidates Pipeline Diario" /tr "D:\Python\projetos\job_scout\jobscout\scripts\run_linkedin_candidates_pipeline_daily.bat" /sc weekly /d MON,TUE,WED,THU,FRI /st 08:45
+```
+
+Documentação completa: [`docs/linkedin-candidates-scheduler.md`](docs/linkedin-candidates-scheduler.md).
+
+
+
+### Atualização do agendamento LinkedIn Candidates
+
+O agendamento foi padronizado com o mesmo modelo do CSV: `config.ps1`, `PythonExe` absoluto e `Start-Transcript`. Consulte `docs/linkedin-candidates-scheduler.md`.

@@ -84,3 +84,27 @@ Status: implementado.
 - [x] Documentação em `docs/csv-import-scheduler.md`.
 - [ ] Agendar no Windows após a rotina do `linkedin_gmail_jobs_hub`.
 - [ ] Validar execução real de segunda a sexta.
+
+## Automação operacional — LinkedIn Candidates diário
+
+Status: implementado.
+
+- [x] Wrapper PowerShell para coletar LinkedIn Search e salvar em `job_candidates`.
+- [x] Wrapper `.bat` para Windows Task Scheduler.
+- [x] Processamento automático de até 100 candidatos pendentes.
+- [x] Suporte a `-DryRun`, `-NoExportXlsx`, `-RetryFailed`, `-IncludeClosed` e `-MaxJobsPerUrl`.
+- [x] Logs em `logs/powershell`.
+- [x] Documentação em `docs/linkedin-candidates-scheduler.md`.
+- [x] Testes de consistência dos arquivos de agendamento.
+- [ ] Agendar no Windows após validar a execução manual local.
+- [ ] Validar execução real de segunda a sexta.
+
+
+
+## Atualização concluída — robustez do agendamento LinkedIn Candidates
+
+- [x] Padronizar o agendamento de LinkedIn Candidates com o modelo do CSV.
+- [x] Remover dependência direta de `conda activate` no `.bat`.
+- [x] Resolver Python pelo `config.ps1` usando `$PythonExe`.
+- [x] Usar `Start-Transcript` para logs mais completos no Windows Task Scheduler.
+- [x] Adicionar testes de estrutura para os scripts de agendamento.

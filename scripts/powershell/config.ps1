@@ -34,3 +34,11 @@ $JobsCsvLimit = 100
 # NOVO: Python do ambiente
 # ============================
 $PythonExe = "D:\Python\anaconda3\envs\job_scout\python.exe"
+# ============================
+# LinkedIn Candidates Scheduler
+# ============================
+$LinkedinCandidatesPipelineLimit = 100
+$LinkedinCandidatesPipelineNoExportXlsx = $false
+$LinkedinCandidatesPipelineRetryFailed = $false
+$LinkedinCandidatesPipelineIncludeClosed = $false
+$LinkedinCandidatesPipelineMaxJobsPerUrl = 0

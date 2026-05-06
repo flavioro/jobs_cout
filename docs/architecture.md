@@ -169,3 +169,46 @@ python migrate_db.py
 A importação CSV diária é tratada como uma automação operacional externa ao ciclo HTTP da API. O Windows Task Scheduler executa `scripts/run_import_jobs_csv_daily.bat`, que chama `scripts/powershell/run_import_jobs_csv_daily.ps1`. O wrapper valida a existência e a data do arquivo CSV antes de chamar o módulo Python `scripts.import_jobs_csv`.
 
 Esse desenho mantém a regra de negócio no serviço Python existente (`batch_ingest_service`) e deixa o PowerShell responsável apenas por orquestração, validação operacional e logs.
+
+## Automação do pipeline LinkedIn Candidates
+
+A coleta e o processamento da staging queue também podem ser executados por automação operacional externa ao ciclo HTTP da API.
+
+O Windows Task Scheduler deve chamar:
+
+```text
+scripts/run_linkedin_candidates_pipeline_daily.bat
+```
+
+Esse `.bat` ativa o ambiente `job_scout` e delega para:
+
+```text
+scripts/powershell/run_linkedin_candidates_pipeline_daily.ps1
+```
+
+O PowerShell orquestra duas etapas Python:
+
+```bash
+python -m scripts.collect_linkedin_search_jobs --save-candidates
+python -m scripts.process_job_candidates --limit 100
+```
+
+Esse desenho mantém a lógica de negócio nos serviços Python existentes (`linkedin_search_collection_service`, `job_candidate_service` e `ingest_service`) e deixa o PowerShell responsável apenas por orquestração, parâmetros operacionais e logs.
+
+
+
+## Automação diária do LinkedIn Candidates
+
+O pipeline agendado do LinkedIn Candidates segue o mesmo padrão da automação CSV:
+
+```text
+.bat -> .ps1 -> config.ps1 -> PythonExe absoluto -> scripts Python
+```
+
+Essa decisão reduz diferenças entre execução manual e Windows Task Scheduler, porque o PowerShell usa diretamente o Python do ambiente conda configurado em `$PythonExe`, além de gravar logs com `Start-Transcript`.
+
+Fluxo:
+
+```text
+LinkedIn Search -> job_candidates -> process_job_candidates -> jobs
+```
