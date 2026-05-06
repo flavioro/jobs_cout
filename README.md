@@ -152,3 +152,34 @@ O Excel deixou de ser a fonte principal do fluxo. A fonte principal agora é a t
 ## Observação sobre browser AI
 
 O modo padrão é `new_chat`, mais previsível para automação. O modo `existing_chat` é suportado via URL configurável, mas traz risco maior de contaminação de contexto.
+
+
+## Importação diária de CSV via Windows Task Scheduler
+
+O `job_scout` pode importar automaticamente o CSV gerado pelo projeto `linkedin_gmail_jobs_hub`. O fluxo recomendado é agendar a geração do arquivo no projeto de origem e, alguns minutos depois, executar o import no `job_scout`.
+
+Arquivo de origem padrão:
+
+```text
+D:\Python\projetos\gmail_linkedin\linkedin_gmail_jobs_hub\exports\jobs_last_2_days.csv
+```
+
+Executar manualmente, validando se o CSV foi atualizado hoje:
+
+```powershell
+scripts\run_import_jobs_csv_daily.bat
+```
+
+Teste seguro sem gravar/processar:
+
+```powershell
+scripts\run_import_jobs_csv_daily.bat -DryRun
+```
+
+O wrapper chama o importador Python existente:
+
+```bash
+python -m scripts.import_jobs_csv --csv-path "D:\Python\projetos\gmail_linkedin\linkedin_gmail_jobs_hub\exports\jobs_last_2_days.csv" --status-filter new
+```
+
+Documentação completa: [`docs/csv-import-scheduler.md`](docs/csv-import-scheduler.md).

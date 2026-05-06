@@ -71,3 +71,16 @@
 - fila robusta com retries/backoff;
 - automações orientadas por perfil e prioridade de candidatura;
 - múltiplos providers de busca e enriquecimento.
+
+
+## Automação operacional — CSV diário
+
+Status: implementado.
+
+- [x] Wrapper PowerShell para importar CSV diário.
+- [x] Wrapper `.bat` para Windows Task Scheduler.
+- [x] Validação de que `jobs_last_2_days.csv` foi atualizado no mesmo dia.
+- [x] Logs em `logs/powershell`.
+- [x] Documentação em `docs/csv-import-scheduler.md`.
+- [ ] Agendar no Windows após a rotina do `linkedin_gmail_jobs_hub`.
+- [ ] Validar execução real de segunda a sexta.

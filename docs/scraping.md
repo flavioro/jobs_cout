@@ -104,3 +104,10 @@ data/jobscout.db
 ```
 
 Esses arquivos não devem ser commitados.
+
+
+## Importação de vagas por CSV externo
+
+Além da coleta direta pelo LinkedIn Search, o projeto pode consumir o CSV diário produzido pelo `linkedin_gmail_jobs_hub`. Esse fluxo é útil quando as vagas são originadas por e-mails capturados no Gmail e exportadas para `jobs_last_2_days.csv`.
+
+Use `scripts/run_import_jobs_csv_daily.bat` para execução agendada no Windows. O script valida que o CSV foi atualizado no mesmo dia antes de chamar `python -m scripts.import_jobs_csv`.

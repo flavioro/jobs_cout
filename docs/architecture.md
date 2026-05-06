@@ -162,3 +162,10 @@ Comando recomendado:
 ```bash
 python migrate_db.py
 ```
+
+
+## Automação de importação CSV
+
+A importação CSV diária é tratada como uma automação operacional externa ao ciclo HTTP da API. O Windows Task Scheduler executa `scripts/run_import_jobs_csv_daily.bat`, que chama `scripts/powershell/run_import_jobs_csv_daily.ps1`. O wrapper valida a existência e a data do arquivo CSV antes de chamar o módulo Python `scripts.import_jobs_csv`.
+
+Esse desenho mantém a regra de negócio no serviço Python existente (`batch_ingest_service`) e deixa o PowerShell responsável apenas por orquestração, validação operacional e logs.

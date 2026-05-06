@@ -45,14 +45,14 @@ class Settings(BaseSettings):
     gemini_chat_mode: str = "new_chat"
     gemini_chat_url: str | None = None
     gemini_prompt_timeout_ms: int = 5000
-    gemini_response_wait_s: float = 15.0
+    gemini_response_wait_s: float = 10.0
 
     parser_version: str = "linkedin_v1.0"
     interactive_login: bool = False
     log_level: str = "INFO"
 
     playwright_headless: bool = True
-    playwright_timeout_ms: int = 30000
+    playwright_timeout_ms: int = 20000
     fetch_min_delay_s: float = 2.0
     fetch_max_delay_s: float = 5.0
 
@@ -68,9 +68,9 @@ class Settings(BaseSettings):
     user_profile_context: str = ""
 
     # "groq" | "chatgpt_web" | "gemini_web"
-    enrichment_provider: str = "chatgpt_web"
+    enrichment_provider: str = "gemini_web"
     enrichment_web_chat_mode: str = "new_chat"
-    enrichment_web_response_timeout_s: float = 45.0
+    enrichment_web_response_timeout_s: float = 25.0
     enrichment_web_max_retries: int = 1
     enrichment_web_force_new_chat: bool = True
 
